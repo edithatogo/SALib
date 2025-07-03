@@ -174,6 +174,9 @@ to the wrapper are passed on to workers. The approach works be using Python's
 `mutable default argument <https://docs.python-guide.org/writing/gotchas/#mutable-default-arguments>`_
 behavior.
 
+If :mod:`p_tqdm` is installed, progress bars will be displayed during
+parallel execution.
+
 A further consideration is that imported modules/packages are not made
 available to workers in cases where functions are defined in the same file
 SALib is used in. Running the previous example with :code:`.evaluate(wrapped_linear, nprocs=2)`

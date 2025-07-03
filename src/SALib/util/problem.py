@@ -3,7 +3,7 @@ import importlib
 from types import MethodType
 from functools import partial, wraps
 
-from multiprocess import Pool, cpu_count
+from multiprocessing import Pool, cpu_count, shared_memory
 import numpy as np
 
 import SALib.sample as samplers
@@ -19,7 +19,7 @@ from .results import ResultDict
 
 ptqdm_available = True
 try:
-    from p_tqdm import p_imap
+    from p_tqdm import p_map
 except ImportError:
     ptqdm_available = False
 
@@ -32,6 +32,52 @@ except ImportError:
 
 
 __all__ = ["ProblemSpec"]
+
+
+def _chunk_indices(length: int, n: int):
+    steps = np.linspace(0, length, num=n + 1, dtype=int)
+    return [(int(steps[i]), int(steps[i + 1])) for i in range(n)]
+
+
+def _eval_worker(args):
+    start, end, x_name, x_shape, x_dtype, y_name, y_shape, y_dtype, func, f_args, f_kwargs = args
+    shm_x = shared_memory.SharedMemory(name=x_name)
+    X = np.ndarray(x_shape, dtype=x_dtype, buffer=shm_x.buf)
+    shm_y = shared_memory.SharedMemory(name=y_name)
+    Y = np.ndarray(y_shape, dtype=y_dtype, buffer=shm_y.buf)
+    Y[start:end] = func(X[start:end], *f_args, **f_kwargs)
+    shm_x.close()
+    shm_y.close()
+
+
+def _analyze_worker(args):
+    (
+        idx,
+        problem,
+        y_name,
+        y_shape,
+        y_dtype,
+        x_name,
+        x_shape,
+        x_dtype,
+        func,
+        f_args,
+        f_kwargs,
+    ) = args
+    shm_y = shared_memory.SharedMemory(name=y_name)
+    Y = np.ndarray(y_shape, dtype=y_dtype, buffer=shm_y.buf)
+    if x_name is not None:
+        shm_x = shared_memory.SharedMemory(name=x_name)
+        X = np.ndarray(x_shape, dtype=x_dtype, buffer=shm_x.buf)
+        kwargs = {"X": X, "Y": Y if idx is None else Y[:, idx]}
+    else:
+        kwargs = {"Y": Y if idx is None else Y[:, idx]}
+    kwargs.update(f_kwargs)
+    res = func(problem, *f_args, **kwargs)
+    shm_y.close()
+    if x_name is not None:
+        shm_x.close()
+    return idx, res
 
 
 class ProblemSpec(dict):
@@ -210,10 +256,6 @@ class ProblemSpec(dict):
         -------
         self : ProblemSpec object
         """
-        warnings.warn(
-            "Parallel evaluation is an experimental feature and may not work."
-        )
-
         if self._samples is None:
             raise RuntimeError("Sampling not yet conducted")
 
@@ -227,20 +269,49 @@ class ProblemSpec(dict):
                 )
             nprocs = min(max_procs, nprocs)
 
-        # Create wrapped partial function to allow passing of additional args
         tmp_f = self._wrap_func(func, *args, **kwargs)
 
-        # Split into even chunks
-        chunks = np.array_split(self._samples, int(nprocs), axis=0)
+        n = len(self._samples)
+        test_res = tmp_f(self._samples[0:1])
+        res_shape = (n,) if test_res.ndim == 1 else (n, *test_res.shape[1:])
+        res_dtype = test_res.dtype
+
+        shm_x = shared_memory.SharedMemory(create=True, size=self._samples.nbytes)
+        X = np.ndarray(self._samples.shape, dtype=self._samples.dtype, buffer=shm_x.buf)
+        X[:] = self._samples
+
+        shm_y = shared_memory.SharedMemory(create=True, size=np.empty(res_shape, dtype=res_dtype).nbytes)
+        Y = np.ndarray(res_shape, dtype=res_dtype, buffer=shm_y.buf)
+
+        tasks = [
+            (
+                s,
+                e,
+                shm_x.name,
+                self._samples.shape,
+                self._samples.dtype,
+                shm_y.name,
+                res_shape,
+                res_dtype,
+                tmp_f,
+                [],
+                {},
+            )
+            for s, e in _chunk_indices(n, nprocs)
+        ]
 
         if ptqdm_available:
-            # Display progress bar if available
-            res = p_imap(tmp_f, chunks, num_cpus=nprocs)
+            p_map(_eval_worker, tasks, num_cpus=nprocs)
         else:
             with Pool(nprocs) as pool:
-                res = list(pool.imap(tmp_f, chunks))
+                pool.map(_eval_worker, tasks)
 
-        self.results = self._collect_results(res)
+        self.results = np.array(Y)
+
+        shm_x.close()
+        shm_x.unlink()
+        shm_y.close()
+        shm_y.unlink()
 
         return self
 
@@ -398,16 +469,12 @@ class ProblemSpec(dict):
         -------
         self : ProblemSpec object
         """
-        warnings.warn("Parallel analysis is an experimental feature and may not work.")
-
         if self._results is None:
             raise RuntimeError("Model not yet evaluated")
 
-        if "X" in func.__code__.co_varnames:
-            # enforce passing of X if expected
-            func = partial(func, *args, X=self._samples, **kwargs)
-        else:
-            func = partial(func, *args, **kwargs)
+        expect_X = "X" in func.__code__.co_varnames
+        func_args = args
+        func_kwargs = kwargs
 
         out_cols = self.get("outputs", None)
         if out_cols is None:
@@ -417,47 +484,64 @@ class ProblemSpec(dict):
                 num_cols = self._results.shape[1]
                 self["outputs"] = [f"Y{i}" for i in range(1, num_cols + 1)]
 
-        # Cap number of processors used
         Yn = len(self["outputs"])
-        if Yn == 1:
-            # Only single output, cannot parallelize
-            warnings.warn(
-                f"Analysis was not parallelized: {nprocs} processors requested"
-                f" for 1 output."
+        max_procs = cpu_count()
+        if nprocs is None:
+            nprocs = min(Yn, max_procs)
+        else:
+            nprocs = min(Yn, nprocs, max_procs)
+
+        y_shape = self._results.shape
+        y_dtype = self._results.dtype
+        shm_y = shared_memory.SharedMemory(create=True, size=self._results.nbytes)
+        Y = np.ndarray(y_shape, dtype=y_dtype, buffer=shm_y.buf)
+        Y[:] = self._results
+
+        if expect_X:
+            x_shape = self._samples.shape
+            x_dtype = self._samples.dtype
+            shm_x = shared_memory.SharedMemory(create=True, size=self._samples.nbytes)
+            X = np.ndarray(x_shape, dtype=x_dtype, buffer=shm_x.buf)
+            X[:] = self._samples
+            x_name = shm_x.name
+        else:
+            x_name = None
+            x_shape = None
+            x_dtype = None
+
+        tasks = [
+            (
+                i if Yn > 1 else None,
+                dict(self),
+                shm_y.name,
+                y_shape,
+                y_dtype,
+                x_name,
+                x_shape,
+                x_dtype,
+                func,
+                func_args,
+                func_kwargs,
             )
+            for i in range(Yn)
+        ]
 
-            res = func(self, Y=self._results)
+        if ptqdm_available:
+            res = p_map(_analyze_worker, tasks, num_cpus=nprocs)
         else:
-            max_procs = cpu_count()
-            if nprocs is None:
-                nprocs = max_procs
-            else:
-                nprocs = min(Yn, nprocs, max_procs)
+            with Pool(nprocs) as pool:
+                res = pool.map(_analyze_worker, tasks)
 
-            if ptqdm_available:
-                # Display progress bar if available
-                res = p_imap(
-                    lambda y: func(self, Y=y),
-                    [self._results[:, i] for i in range(Yn)],
-                    num_cpus=nprocs,
-                )
-            else:
-                with Pool(nprocs) as pool:
-                    res = list(
-                        pool.imap(
-                            lambda y: func(self, Y=y),
-                            [self._results[:, i] for i in range(Yn)],
-                        )
-                    )
+        if expect_X:
+            shm_x.close()
+            shm_x.unlink()
+        shm_y.close()
+        shm_y.unlink()
 
-        # Assign by output name if more than 1 output, otherwise
-        # attach directly
         if Yn > 1:
-            self._analysis = {}
-            for out, Si in zip(self["outputs"], list(res)):
-                self._analysis[out] = Si
+            self._analysis = {self["outputs"][i]: r for i, r in res}
         else:
-            self._analysis = res
+            self._analysis = res[0][1]
 
         return self
 

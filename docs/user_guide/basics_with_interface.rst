@@ -229,9 +229,9 @@ Here, we use the Ishigami function as an example.
 
 
 .. note::
-    SALib also supports parallel model evaluation with
-    `sp.evaluate_parallel()`. It is assumed that all results
-    can be held in memory.
+    Model evaluation and analysis can be parallelized by passing
+    ``nprocs`` to :code:`evaluate` or :code:`analyze_*`.  A progress bar
+    is displayed if `p_tqdm`_ is installed.
 
 
 The Ishigami module provides an :code:`evaluate` function that
@@ -557,3 +557,4 @@ parameter :math:`a` as the contribution to :math:`y` from :math:`b
 x^2` vanishes. With larger :math:`|x|`, the contribution to the
 variation from parameter :math:`b` increases and the contribution from
 parameter :math:`a` decreases.
+.. _p_tqdm: https://github.com/swansonk14/p_tqdm
