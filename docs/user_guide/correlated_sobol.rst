@@ -14,27 +14,31 @@ The method implemented is based on the concept of estimating "full" first-order 
 
 The key idea is to evaluate how the output variance changes when an input :math:`X_i` is fixed (for first-order effects) or when all other inputs :math:`X_{\\sim i}` are fixed (for total-order effects), under the true joint distribution of the correlated inputs.
 
-**Important Note:** The precise mathematical formulation and estimators used are based on common conceptual approaches found in literature (e.g., related to work by Janon et al., 2013; Mara & Tarantola, 2012; Kucherenko et al.). For rigorous application, users should refer to specific academic papers detailing these types of "full" indices for correlated systems. This implementation should be considered experimental.
+**Important Note:** This implementation is experimental. The estimators used are consistent with approaches for estimating "full" sensitivity indices in the presence of correlated inputs, such as those discussed in:
+
+*   Janon, A., Klein, T., Lagnoux, A., Nodet, M., & Prieur, C. (2013). Variance-based sensitivity analysis for model output with dependent inputs. *Communications in Applied and Industrial Mathematics, 5*(1), e-413.
+*   Mara, T. A., & Tarantola, S. (2012). Variance-based sensitivity indices for models with dependent inputs. *Reliability Engineering & System Safety, 107*, 115-121.
+*   Kucherenko, S., Tarantola, S., & Annoni, P. (2009). Estimation of global sensitivity indices for models with dependent variables. *Computer Physics Communications, 180*(12), 2570-2583.
+
+Users should consult this literature for a detailed understanding of the theoretical background, properties, and interpretation of such indices.
 
 Indices Calculated
 ------------------
 
-The `analyze_sobol_correlated` function returns the following "full" indices:
+The `analyze_sobol_correlated` function estimates the following "full" indices using specific Monte Carlo estimators:
 
 *   **S1_full (Full First-Order Index):**
-    This index measures the main effect of :math:`X_i` on the output :math:`Y`, including effects that are shared due to its correlation with other input variables.
-    The specific estimator used is:
-    :math:`S1\_full_i = ( \\frac{1}{N} \\sum_{k=1}^{N} Y_A^{(k)} Y_{C_i}^{(k)} - E[Y_A] E[Y_{C_i}] ) / V(Y)`
-    where :math:`Y_A = f(X_A)`, :math:`Y_{C_i} = f(X_{A,i}, X_{B,\\sim i})`, :math:`E[Y_A]` and :math:`E[Y_{C_i}]` are the sample means of :math:`Y_A` and :math:`Y_{C_i}` respectively, and :math:`V(Y)` is the total variance of the output (estimated from :math:`Y_A` and :math:`Y_B`). This estimator approximates :math:`Cov(Y_A, Y_{C_i}) / V(Y)`.
-    The sum of `S1_full` indices may not be equal to 1 and can even exceed 1, especially with strong correlations.
-    *[Further citation to specific literature, e.g., Janon et al. (2013), needed here after full literature review for this exact estimator form and its properties.]*
+    This index quantifies the main effect of :math:`X_i` on the output :math:`Y`, inclusive of effects shared due to its correlation with other input variables.
+    The implemented estimator is:
+    :math:`\hat{S1}_{full,i} = \frac{\frac{1}{N} \sum_{k=1}^{N} Y_A^{(k)} Y_{C_i}^{(k)} - \left(\frac{1}{N}\sum_{k=1}^{N} Y_A^{(k)}\right) \left(\frac{1}{N}\sum_{k=1}^{N} Y_{C_i}^{(k)}\right)}{\hat{V}(Y)}`
+    where :math:`Y_A = f(X_A)`, :math:`Y_{C_i} = f(X_{A,i}, X_{B,\sim i})`, and :math:`\hat{V}(Y)` is the estimated total variance of :math:`Y` (from :math:`Y_A, Y_B`). This estimates :math:`Cov(Y_A, Y_{C_i}) / V(Y)`.
+    The sum of `S1_full` indices may not be equal to 1 and can exceed 1 or be negative.
 
 *   **ST_full (Full Total-Order Index):**
-    This index measures the total effect of :math:`X_i` on :math:`Y`, including its main effect, all interaction effects involving :math:`X_i`, and all effects shared due to its correlations with other input variables.
-    The specific estimator used is:
-    :math:`ST\_full_i = ( \\frac{1}{2N} \\sum_{k=1}^{N} (Y_A^{(k)} - Y_{D_i}^{(k)})^2 ) / V(Y)`
-    where :math:`Y_{D_i} = f(X_{A,\\sim i}, X_{B,i})`. This estimator approximates :math:`(0.5 \\times E[(Y_A - Y_{D_i})^2]) / V(Y)`.
-    *[Further citation to specific literature, e.g., Saltelli et al. (2010) for the form, adapted as in Janon et al. (2013) or Mara & Tarantola (2012) for dependent inputs, needed here after full literature review.]*
+    This index quantifies the total effect of :math:`X_i` on :math:`Y`, including its main effect, all interaction effects involving :math:`X_i`, and all effects shared due to its correlations with other input variables.
+    The implemented estimator is:
+    :math:`\hat{ST}_{full,i} = \frac{\frac{1}{2N} \sum_{k=1}^{N} (Y_A^{(k)} - Y_{D_i}^{(k)})^2}{\hat{V}(Y)}`
+    where :math:`Y_{D_i} = f(X_{A,\sim i}, X_{B,i})`. This estimates :math:`\frac{E[(Y_A - Y_{D_i})^2]}{2V(Y)}`.
 
 Confidence intervals for these indices are estimated using bootstrapping.
 

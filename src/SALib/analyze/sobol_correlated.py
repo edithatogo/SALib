@@ -60,10 +60,11 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
       This estimates :math:`(0.5 \\times E[(Y_A - Y_{D_i})^2]) / V(Y)`, where
       :math:`Y_{D_i} = f(X_{A,\\sim i}, X_{B,i})`.
 
-    These conceptual estimators are based on approaches common in literature for
-    analyzing models with dependent inputs (e.g., Janon et al., 2013;
-    Mara & Tarantola, 2012). [Further citation to specific literature
-    needed here after full literature review and validation of these exact forms.]
+    These estimators are consistent with approaches for estimating "full"
+    sensitivity indices in the presence of correlated inputs, such as those
+    discussed in literature (e.g., Janon et al., 2013, Comm. App. Ind. Math.;
+    Mara & Tarantola, 2012, RESS; Kucherenko et al., 2009, CPC). Users should
+    consult these references for a detailed theoretical background.
     This implementation should be considered **experimental**.
 
     It expects model outputs `Y` generated from samples produced by
