@@ -5,6 +5,7 @@ import numpy as np
 
 from . import common_args
 from ..util import read_param_file, ResultDict
+from ..util.jit import optional_njit
 
 
 def analyze(
@@ -123,6 +124,7 @@ def analyze(
     return S
 
 
+@optional_njit(nopython=False, cache=True)
 def calc_delta(Y, Ygrid, X, m):
     """Plischke et al. (2013) delta index estimator (eqn 26) for d_hat."""
     N = len(Y)

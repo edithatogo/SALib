@@ -4,6 +4,7 @@ from scipy.stats import norm
 
 from . import common_args
 from ..util import read_param_file, ResultDict
+from ..util.jit import optional_njit
 
 
 def analyze(
@@ -104,6 +105,7 @@ def analyze(
     return Si
 
 
+@optional_njit(nopython=False, cache=True)
 def compute_orders(outputs: np.ndarray, N: int, M: int, omega: int):
     f = np.fft.fft(outputs)
     Sp = np.power(np.absolute(f[np.arange(1, math.ceil(N / 2))]) / N, 2)
@@ -117,6 +119,7 @@ def compute_orders(outputs: np.ndarray, N: int, M: int, omega: int):
     return (D1 / V), (1.0 - Dt / V)
 
 
+@optional_njit(nopython=False, cache=True)
 def bootstrap(Y: np.ndarray, M: int, resamples: int, conf_level: float):
     """Compute CIs.
 

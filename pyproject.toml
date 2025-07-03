@@ -44,6 +44,10 @@ distributed = [
     "pathos>=0.3.2",
 ]
 
+jit = [
+    "numba",
+]
+
 test = [
     "SALib[distributed]",
     "pytest",

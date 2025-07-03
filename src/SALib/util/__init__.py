@@ -6,6 +6,7 @@ import warnings
 import numpy as np  # type: ignore
 import pandas as pd  # type: ignore
 import scipy as sp  # type: ignore
+from .jit import optional_njit
 from typing import List
 
 from .util_funcs import (  # noqa: F401, E402
@@ -341,6 +342,7 @@ def _define_problem_with_groups(problem: Dict) -> Dict:
     return problem
 
 
+@optional_njit(cache=True)
 def _compute_delta(num_levels: int) -> float:
     """Computes the delta value from number of levels
 

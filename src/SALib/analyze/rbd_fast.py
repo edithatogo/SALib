@@ -6,6 +6,7 @@ from scipy.stats import norm
 
 from . import common_args
 from ..util import read_param_file, ResultDict
+from ..util.jit import optional_njit
 
 
 def analyze(
@@ -103,6 +104,7 @@ def analyze(
     return Si
 
 
+@optional_njit(nopython=False, cache=True)
 def permute_outputs(X, Y):
     """
     Permute the output according to one of the inputs as in [_2]
@@ -121,6 +123,7 @@ def permute_outputs(X, Y):
     return Y[permutation_index]
 
 
+@optional_njit(nopython=False, cache=True)
 def compute_first_order(permuted_outputs, M):
     _, Pxx = periodogram(permuted_outputs)
     V = np.sum(Pxx[1:])
@@ -128,6 +131,7 @@ def compute_first_order(permuted_outputs, M):
     return D1 / V
 
 
+@optional_njit(nopython=False, cache=True)
 def unskew_S1(S1, M, N):
     """
     Unskew the sensitivity indices
@@ -140,6 +144,7 @@ def unskew_S1(S1, M, N):
     return S1 - lamb / (1 - lamb) * (1 - S1)
 
 
+@optional_njit(nopython=False, cache=True)
 def bootstrap(X_d, Y, M, resamples, conf_level):
     # Use half of available data each time
     T_data = X_d.shape[0]
