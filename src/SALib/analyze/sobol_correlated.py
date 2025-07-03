@@ -46,12 +46,25 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
     Performs a correlation-aware Sobol sensitivity analysis on model outputs.
 
     This function estimates "full" first-order (S1_full) and total-order (ST_full)
-    sensitivity indices, which account for correlations between input parameters,
-    based on the conceptual estimators:
-      S1_full_i = Cov(Y_A, Y_Ci) / V(Y)
-      ST_full_i = (0.5 * E[(Y_A - Y_Di)^2]) / V(Y)
-    The interpretation of these indices differs from standard Sobol indices
-    for independent inputs.
+    sensitivity indices. These indices account for correlations between input
+    parameters and their interpretation differs from standard Sobol' indices
+    (which assume input independence).
+
+    The implemented estimators are:
+    - For S1_full_i:
+      :math:`S1\_full_i = ( \\frac{1}{N} \\sum_{k=1}^{N} Y_A^{(k)} Y_{C_i}^{(k)} - E[Y_A] E[Y_{C_i}] ) / V(Y)`
+      This estimates :math:`Cov(Y_A, Y_{C_i}) / V(Y)`, where :math:`Y_A = f(X_A)`
+      and :math:`Y_{C_i} = f(X_{A,i}, X_{B,\\sim i})`.
+    - For ST_full_i:
+      :math:`ST\_full_i = ( \\frac{1}{2N} \\sum_{k=1}^{N} (Y_A^{(k)} - Y_{D_i}^{(k)})^2 ) / V(Y)`
+      This estimates :math:`(0.5 \\times E[(Y_A - Y_{D_i})^2]) / V(Y)`, where
+      :math:`Y_{D_i} = f(X_{A,\\sim i}, X_{B,i})`.
+
+    These conceptual estimators are based on approaches common in literature for
+    analyzing models with dependent inputs (e.g., Janon et al., 2013;
+    Mara & Tarantola, 2012). [Further citation to specific literature
+    needed here after full literature review and validation of these exact forms.]
+    This implementation should be considered **experimental**.
 
     It expects model outputs `Y` generated from samples produced by
     `SALib.sample.sobol_correlated.sample()`.

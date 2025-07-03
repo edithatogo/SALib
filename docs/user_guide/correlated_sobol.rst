@@ -22,11 +22,19 @@ Indices Calculated
 The `analyze_sobol_correlated` function returns the following "full" indices:
 
 *   **S1_full (Full First-Order Index):**
-    This index measures the main effect of :math:`X_i` on the output :math:`Y`, including effects that are shared due to its correlation with other input variables. It is conceptually estimated as :math:`Cov(Y_A, Y_{C_i}) / V(Y)`, where :math:`Y_A = f(X_A)` and :math:`Y_{C_i} = f(X_{A,i}, X_{B,\\sim i})`.
+    This index measures the main effect of :math:`X_i` on the output :math:`Y`, including effects that are shared due to its correlation with other input variables.
+    The specific estimator used is:
+    :math:`S1\_full_i = ( \\frac{1}{N} \\sum_{k=1}^{N} Y_A^{(k)} Y_{C_i}^{(k)} - E[Y_A] E[Y_{C_i}] ) / V(Y)`
+    where :math:`Y_A = f(X_A)`, :math:`Y_{C_i} = f(X_{A,i}, X_{B,\\sim i})`, :math:`E[Y_A]` and :math:`E[Y_{C_i}]` are the sample means of :math:`Y_A` and :math:`Y_{C_i}` respectively, and :math:`V(Y)` is the total variance of the output (estimated from :math:`Y_A` and :math:`Y_B`). This estimator approximates :math:`Cov(Y_A, Y_{C_i}) / V(Y)`.
     The sum of `S1_full` indices may not be equal to 1 and can even exceed 1, especially with strong correlations.
+    *[Further citation to specific literature, e.g., Janon et al. (2013), needed here after full literature review for this exact estimator form and its properties.]*
 
 *   **ST_full (Full Total-Order Index):**
-    This index measures the total effect of :math:`X_i` on :math:`Y`, including its main effect, all interaction effects involving :math:`X_i`, and all effects shared due to its correlations with other input variables. It is conceptually estimated as :math:`(0.5 \\times E[(Y_A - Y_{D_i})^2]) / V(Y)`, where :math:`Y_{D_i} = f(X_{A,\\sim i}, X_{B,i})`.
+    This index measures the total effect of :math:`X_i` on :math:`Y`, including its main effect, all interaction effects involving :math:`X_i`, and all effects shared due to its correlations with other input variables.
+    The specific estimator used is:
+    :math:`ST\_full_i = ( \\frac{1}{2N} \\sum_{k=1}^{N} (Y_A^{(k)} - Y_{D_i}^{(k)})^2 ) / V(Y)`
+    where :math:`Y_{D_i} = f(X_{A,\\sim i}, X_{B,i})`. This estimator approximates :math:`(0.5 \\times E[(Y_A - Y_{D_i})^2]) / V(Y)`.
+    *[Further citation to specific literature, e.g., Saltelli et al. (2010) for the form, adapted as in Janon et al. (2013) or Mara & Tarantola (2012) for dependent inputs, needed here after full literature review.]*
 
 Confidence intervals for these indices are estimated using bootstrapping.
 
