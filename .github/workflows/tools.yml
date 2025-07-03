@@ -1,0 +1,36 @@
+name: Tools
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Bandit
+        run: |
+          set -e
+          python -m pip install --user bandit
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          bandit --version
+
+      - name: Install Go-Task
+        run: |
+          set -e
+          curl -sL https://taskfile.dev/install.sh | sudo sh -s -- -d -b /usr/local/bin
+          task --version
+
+      - name: Install Vagrant
+        run: |
+          set -e
+          sudo apt-get update
+          sudo apt-get install -y vagrant
+          vagrant --version
