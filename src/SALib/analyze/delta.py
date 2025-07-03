@@ -2,6 +2,7 @@ from typing import Dict
 from scipy.stats import norm, gaussian_kde, rankdata
 
 import numpy as np
+from multiprocess import Pool
 
 from . import common_args
 from ..util import read_param_file, ResultDict
@@ -17,6 +18,8 @@ def analyze(
     seed: int = None,
     y_resamples: int = None,
     method: str = "all",
+    parallel: bool = False,
+    n_processors: int = None,
 ) -> Dict:
     """Perform Delta Moment-Independent Analysis on model outputs.
 
@@ -57,6 +60,11 @@ def analyze(
         Number of samples to use when resampling (bootstrap) (default None)
     method : {"all", "delta", "sobol"}, optional
         Whether to compute "delta", "sobol" or both ("all") indices (default "all")
+    parallel : bool, optional
+        If True, parallelizes the bootstrap resampling computations. Default is False.
+    n_processors : int, optional
+        Number of processors to use when `parallel` is True. If None, defaults
+        to all available CPU cores. Default is None.
 
 
     References
@@ -99,13 +107,28 @@ def analyze(
             X_i = X[:, i]
             if method in ["all", "delta"]:
                 S["delta"][i], S["delta_conf"][i] = bias_reduced_delta(
-                    Y, Ygrid, X_i, m, num_resamples, conf_level, y_resamples
+                    Y,
+                    Ygrid,
+                    X_i,
+                    m,
+                    num_resamples,
+                    conf_level,
+                    y_resamples,
+                    parallel=parallel,
+                    n_processors=n_processors,
                 )
             if method in ["all", "sobol"]:
                 ind = np.random.randint(Y.size, size=y_resamples)
                 S["S1"][i] = sobol_first(Y[ind], X_i[ind], m)
                 S["S1_conf"][i] = sobol_first_conf(
-                    Y, X_i, m, num_resamples, conf_level, y_resamples
+                    Y,
+                    X_i,
+                    m,
+                    num_resamples,
+                    conf_level,
+                    y_resamples,
+                    parallel=parallel,
+                    n_processors=n_processors,
                 )
     except np.linalg.LinAlgError as e:
         msg = "Singular matrix detected\n"
@@ -121,6 +144,28 @@ def analyze(
         print(S.to_df())
 
     return S
+
+
+# Worker for bias_reduced_delta bootstrap
+def _delta_bias_worker(args):
+    """
+    Performs a single bootstrap resample for calc_delta.
+    Designed for use with multiprocess.Pool.map.
+    """
+    Y_local, X_local, Ygrid_local, m_local, N_local, y_resamples_local, _ = args
+    r_i = np.random.randint(N_local, size=y_resamples_local)
+    return calc_delta(Y_local[r_i], Ygrid_local, X_local[r_i], m_local)
+
+
+# Worker for sobol_first_conf bootstrap
+def _delta_sobol_worker(args):
+    """
+    Performs a single bootstrap resample for sobol_first.
+    Designed for use with multiprocess.Pool.map.
+    """
+    Y_local, X_local, m_local, N_local, y_resamples_local, _ = args
+    r_i = np.random.randint(N_local, size=y_resamples_local)
+    return sobol_first(Y_local[r_i], X_local[r_i], m_local)
 
 
 def calc_delta(Y, Ygrid, X, m):
@@ -148,21 +193,44 @@ def calc_delta(Y, Ygrid, X, m):
     return d_hat
 
 
-def bias_reduced_delta(Y, Ygrid, X, m, num_resamples, conf_level, y_resamples):
+def bias_reduced_delta(
+    Y,
+    Ygrid,
+    X,
+    m,
+    num_resamples,
+    conf_level,
+    y_resamples,
+    parallel: bool = False,
+    n_processors: int = None,
+):
     """Plischke et al. 2013 bias reduction technique (eqn 30)"""
-    d = np.empty(num_resamples)
+    if num_resamples == 0:
+        # Calculate d_hat only, conf interval will be nan.
+        N = len(Y)
+        ind = np.random.randint(N, size=y_resamples)
+        d_hat = calc_delta(Y[ind], Ygrid, X[ind], m)
+        return d_hat, np.nan
 
     N = len(Y)
     ind = np.random.randint(N, size=y_resamples)
     d_hat = calc_delta(Y[ind], Ygrid, X[ind], m)
-    r = np.random.randint(N, size=(num_resamples, y_resamples))
 
-    for i in range(num_resamples):
-        r_i = r[i, :]
-        d[i] = calc_delta(Y[r_i], Ygrid, X[r_i], m)
+    if parallel:
+        pool_processors = n_processors
+        tasks = [(Y, X, Ygrid, m, N, y_resamples, i) for i in range(num_resamples)]
+        with Pool(processes=pool_processors) as pool:
+            d_bootstrap = pool.map(_delta_bias_worker, tasks)
+        d_bootstrap = np.array(d_bootstrap)
+    else:  # Serial execution
+        d_bootstrap = np.empty(num_resamples)
+        # r = np.random.randint(N, size=(num_resamples, y_resamples)) # Pre-generate all random numbers
+        for i in range(num_resamples):
+            r_i = np.random.randint(N, size=y_resamples) # Generate random numbers per iteration
+            d_bootstrap[i] = calc_delta(Y[r_i], Ygrid, X[r_i], m)
 
-    d = 2.0 * d_hat - d
-    return (d.mean(), norm.ppf(0.5 + conf_level / 2) * d.std(ddof=1))
+    d_final = 2.0 * d_hat - d_bootstrap
+    return (d_final.mean(), norm.ppf(0.5 + conf_level / 2) * d_final.std(ddof=1))
 
 
 def sobol_first(Y, X, m):
@@ -185,17 +253,34 @@ def sobol_first(Y, X, m):
     return Vi / np.var(Y)
 
 
-def sobol_first_conf(Y, X, m, num_resamples, conf_level, y_resamples):
-    s = np.zeros(num_resamples)
+def sobol_first_conf(
+    Y,
+    X,
+    m,
+    num_resamples,
+    conf_level,
+    y_resamples,
+    parallel: bool = False,
+    n_processors: int = None,
+):
+    if num_resamples == 0:
+        return np.nan
 
     N = len(Y)
-    r = np.random.randint(N, size=(num_resamples, y_resamples))
+    if parallel:
+        pool_processors = n_processors
+        tasks = [(Y, X, m, N, y_resamples, i) for i in range(num_resamples)]
+        with Pool(processes=pool_processors) as pool:
+            s_bootstrap = pool.map(_delta_sobol_worker, tasks)
+        s_bootstrap = np.array(s_bootstrap)
+    else:  # Serial execution
+        s_bootstrap = np.zeros(num_resamples)
+        # r = np.random.randint(N, size=(num_resamples, y_resamples)) # Pre-generate all random numbers
+        for i in range(num_resamples):
+            r_i = np.random.randint(N, size=y_resamples) # Generate random numbers per iteration
+            s_bootstrap[i] = sobol_first(Y[r_i], X[r_i], m)
 
-    for i in range(num_resamples):
-        r_i = r[i, :]
-        s[i] = sobol_first(Y[r_i], X[r_i], m)
-
-    return norm.ppf(0.5 + conf_level / 2) * s.std(ddof=1)
+    return norm.ppf(0.5 + conf_level / 2) * s_bootstrap.std(ddof=1)
 
 
 def cli_parse(parser):

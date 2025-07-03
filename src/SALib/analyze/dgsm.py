@@ -1,13 +1,22 @@
 from scipy.stats import norm
 
 import numpy as np
+from multiprocess import Pool
 
 from . import common_args
 from ..util import read_param_file, ResultDict
 
 
 def analyze(
-    problem, X, Y, num_resamples=100, conf_level=0.95, print_to_console=False, seed=None
+    problem,
+    X,
+    Y,
+    num_resamples=100,
+    conf_level=0.95,
+    print_to_console=False,
+    seed=None,
+    parallel: bool = False,
+    n_processors: int = None,
 ):
     """Calculates Derivative-based Global Sensitivity Measure on model outputs.
 
@@ -46,6 +55,11 @@ def analyze(
         Print results directly to console (default False)
     seed : int
         Seed to generate a random number
+    parallel : bool, optional
+        If True, parallelizes the bootstrap resampling computations. Default is False.
+    n_processors : int, optional
+        Number of processors to use when `parallel` is True. If None, defaults
+        to all available CPU cores. Default is None.
 
 
     References
@@ -93,7 +107,14 @@ def analyze(
         perturbed_j = perturbed[:, j]
         S["vi"][j], S["vi_std"][j] = calc_vi_stats(base, perturbed_j, diff)
         S["dgsm"][j], S["dgsm_conf"][j] = calc_dgsm(
-            base, perturbed_j, diff, bounds[j], num_resamples, conf_level
+            base,
+            perturbed_j,
+            diff,
+            bounds[j],
+            num_resamples,
+            conf_level,
+            parallel=parallel,
+            n_processors=n_processors,
         )
 
     if print_to_console:
@@ -123,22 +144,58 @@ def calc_vi_mean(base, perturbed, x_delta):
     return dfdx.mean()
 
 
-def calc_dgsm(base, perturbed, x_delta, bounds, num_resamples, conf_level):
+# Worker for dgsm bootstrap
+def _dgsm_bootstrap_worker(args):
+    """
+    Performs a single bootstrap resample for calc_vi_mean.
+    Designed for use with multiprocess.Pool.map.
+    """
+    base_local, perturbed_local, x_delta_local, len_base_local, _ = args
+    r_i = np.random.randint(len_base_local, size=len_base_local)
+    return calc_vi_mean(base_local[r_i], perturbed_local[r_i], x_delta_local[r_i])
+
+
+def calc_dgsm(
+    base,
+    perturbed,
+    x_delta,
+    bounds,
+    num_resamples,
+    conf_level,
+    parallel: bool = False,
+    n_processors: int = None,
+):
     """v_i sensitivity measure following Sobol and Kucherenko (2009).
     For comparison, total order S_tot <= dgsm
     """
-    D = np.var(base)
+    if np.var(base) == 0: # Avoid division by zero if base is constant
+        # If Y does not change, dgsm is undefined or zero.
+        # Assigning nan or 0 based on context. Here, 0 seems appropriate if vi is also 0.
+        # If vi is non-zero but D is zero, it's an issue.
+        # For now, if var(base) is 0, implies no variance, so dgsm is 0.
+        return 0.0, np.nan
+
     vi = calc_vi_mean(base, perturbed, x_delta)
-    dgsm = vi * (bounds[1] - bounds[0]) ** 2 / (D * np.pi**2)
+    dgsm = vi * (bounds[1] - bounds[0]) ** 2 / (np.var(base) * np.pi**2)
+
+    if num_resamples == 0:
+        return dgsm, np.nan
 
     len_base = len(base)
-    s = np.empty(num_resamples)
-    r = np.random.randint(len_base, size=(num_resamples, len_base))
-    for i in range(num_resamples):
-        r_i = r[i]
-        s[i] = calc_vi_mean(base[r_i], perturbed[r_i], x_delta[r_i])
+    if parallel:
+        pool_processors = n_processors
+        tasks = [(base, perturbed, x_delta, len_base, i) for i in range(num_resamples)]
+        with Pool(processes=pool_processors) as pool:
+            s_bootstrap = pool.map(_dgsm_bootstrap_worker, tasks)
+        s_bootstrap = np.array(s_bootstrap)
+    else:  # Serial execution
+        s_bootstrap = np.empty(num_resamples)
+        # r = np.random.randint(len_base, size=(num_resamples, len_base)) # Pre-generate
+        for i in range(num_resamples):
+            r_i = np.random.randint(len_base, size=len_base) # Generate per iteration
+            s_bootstrap[i] = calc_vi_mean(base[r_i], perturbed[r_i], x_delta[r_i])
 
-    return dgsm, norm.ppf(0.5 + conf_level / 2.0) * s.std(ddof=1)
+    return dgsm, norm.ppf(0.5 + conf_level / 2.0) * s_bootstrap.std(ddof=1)
 
 
 def cli_parse(parser):

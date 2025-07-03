@@ -1,6 +1,8 @@
 from typing import Dict, List
 import numpy as np
 from scipy.stats import norm
+from multiprocess import Pool
+import functools
 
 from . import common_args
 from ..util import (
@@ -22,6 +24,8 @@ def analyze(
     print_to_console: bool = False,
     num_levels: int = 4,
     seed=None,
+    parallel: bool = False,
+    n_processors: int = None,
 ) -> Dict:
     """Perform Morris Analysis on model outputs.
 
@@ -94,6 +98,12 @@ def analyze(
         passed to SALib.sample.morris (default 4)
     seed : int
         Seed to generate a random number
+    parallel : bool, optional
+        If True, parallelizes the bootstrap resampling computations. Default is False.
+    n_processors : int, optional
+        Number of processors to use when `parallel` is True. If None, defaults
+        to all available CPU cores. Default is None.
+
 
     Returns
     -------
@@ -137,6 +147,32 @@ def analyze(
 
     _define_problem_with_groups(problem)
 
+
+# Helper function for parallel bootstrap of mu_star
+def _morris_bootstrap_worker(args):
+    """
+    Performs a single bootstrap resample for mu_star calculation.
+    Designed to be used with multiprocess.Pool.map.
+
+    Parameters
+    ----------
+    args : tuple
+        A tuple containing (elementary_effects_for_one_param, random_seed_or_state)
+        The random_seed_or_state is not explicitly used here for np.random.randint,
+        as separate processes will have different RNG states. Could be used for
+        more complex seeding if necessary.
+
+    Returns
+    -------
+    float
+        The mean of the absolute values of the resampled elementary effects.
+    """
+    ee_j, _ = args  # Unpack arguments
+    resample_idx_single = np.random.randint(len(ee_j), size=len(ee_j))
+    ee_resampled_single = ee_j[resample_idx_single]
+    return np.average(np.abs(ee_resampled_single))
+
+
     _check_if_array_of_floats(X)
     _check_if_array_of_floats(Y)
 
@@ -160,6 +196,8 @@ def analyze(
         conf_level,
         groups,
         unique_group_names,
+        parallel,
+        n_processors,
     )
 
     if print_to_console:
@@ -175,6 +213,8 @@ def _compute_statistical_outputs(
     conf_level: float,
     groups: np.ndarray,
     unique_group_names: List,
+    parallel: bool = False,
+    n_processors: int = None,
 ) -> ResultDict:
     """Computes the statistical parameters related to Morris method.
 
@@ -209,7 +249,12 @@ def _compute_statistical_outputs(
     mu_star = np.average(np.abs(elementary_effects), 1)
     sigma = np.std(elementary_effects, axis=1, ddof=1)
     mu_star_conf = _compute_mu_star_confidence(
-        elementary_effects, num_vars, num_resamples, conf_level
+        elementary_effects,
+        num_vars,
+        num_resamples,
+        conf_level,
+        parallel=parallel,
+        n_processors=n_processors,
     )
 
     Si["mu"] = _compute_grouped_metric(mu, groups)
@@ -526,7 +571,12 @@ def _reshape_model_outputs(
 
 
 def _compute_mu_star_confidence(
-    elementary_effects: np.ndarray, num_vars: int, num_resamples: int, conf_level: float
+    elementary_effects: np.ndarray,
+    num_vars: int,
+    num_resamples: int,
+    conf_level: float,
+    parallel: bool = False,
+    n_processors: int = None,
 ) -> np.ndarray:
     """Computes the confidence intervals for the mu_star variable.
 
@@ -554,17 +604,44 @@ def _compute_mu_star_confidence(
         raise ValueError("Confidence level must be between 0-1.")
 
     mu_star_conf = []
+    # The loop for `j` iterates over variables. Parallelism is applied *inside* this loop
+    # for the `num_resamples` iterations for each variable.
     for j in range(num_vars):
-        ee = elementary_effects[j, :]
-        resample_index = np.random.randint(len(ee), size=(num_resamples, len(ee)))
-        ee_resampled = ee[resample_index]
+        ee_j = elementary_effects[j, :]
 
-        # Compute average of the absolute values over each of the resamples
-        mu_star_resampled = np.average(np.abs(ee_resampled), axis=1)
+        if parallel and num_resamples > 0:
+            # Use functools.partial to pass the fixed `ee_j` to the worker
+            # The worker expects a tuple (ee_j, iteration_index)
+            # So we create an iterable of such tuples for starmap
+            # Or, for map, worker needs to take only one arg.
 
-        mu_star_conf.append(
-            norm.ppf(0.5 + conf_level / 2) * mu_star_resampled.std(ddof=1)
-        )
+            # Let's use map with a list of tuples, and _morris_bootstrap_worker
+            # expects one tuple argument.
+            worker_tasks = [(ee_j, i) for i in range(num_resamples)]
+
+            # If n_processors is None, Pool defaults to os.cpu_count()
+            # Ensure n_processors is correctly passed or defaulted if necessary
+            pool_processors = n_processors
+
+            with Pool(processes=pool_processors) as pool:
+                mu_star_resampled_values = pool.map(_morris_bootstrap_worker, worker_tasks)
+        elif num_resamples > 0: # Serial execution
+            resample_index = np.random.randint(
+                len(ee_j), size=(num_resamples, len(ee_j))
+            )
+            ee_resampled = ee_j[resample_index]
+            mu_star_resampled_values = np.average(np.abs(ee_resampled), axis=1)
+        else: # No resampling
+            mu_star_resampled_values = np.array([])
+
+
+        if len(mu_star_resampled_values) > 0:
+            mu_star_conf.append(
+                norm.ppf(0.5 + conf_level / 2) * np.std(mu_star_resampled_values, ddof=1)
+            )
+        else: # Handle case with no resampling (e.g. num_resamples=0)
+            mu_star_conf.append(np.nan)
+
 
     mu_star_conf = np.asarray(mu_star_conf)
 

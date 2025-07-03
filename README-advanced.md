@@ -34,13 +34,38 @@ salib analyze sobol \
 
 This will print indices and confidence intervals to the command line. You can redirect to a file using the `>` operator.
 
-### Parallel indices calculation (Sobol method only)
+### Parallel Computation
+The Sobol method supports parallel calculation of sensitivity indices.
 ```python
-Si = sobol.analyze(problem, Y, calc_second_order=True, conf_level=0.95,
-                   print_to_console=False, parallel=True, n_processors=4)
+Si_sobol = sobol.analyze(problem, Y, calc_second_order=True, conf_level=0.95,
+                         print_to_console=False, parallel=True, n_processors=4)
 ```
 
-Other methods include Morris, FAST, Delta-MIM, and DGSM. For an explanation of all command line options for each method, [see the examples here](https://github.com/SALib/SALib/tree/main/examples).
+Additionally, the Morris, FAST, Delta Moment-Independent (Delta-MIM), and Derivative-based Global Sensitivity Measure (DGSM) methods support parallel computation for their bootstrap/resampling procedures (typically used for generating confidence intervals). This can provide a speed-up when `num_resamples` is large.
+
+To use parallel computation for these methods, pass the `parallel=True` and `n_processors` arguments to their respective `analyze` functions:
+
+```python
+# Example for Morris
+Si_morris = morris.analyze(problem, X, Y, num_resamples=1000, conf_level=0.95,
+                           print_to_console=False, parallel=True, n_processors=4)
+
+# Example for FAST
+Si_fast = fast.analyze(problem, Y, M=4, num_resamples=1000, conf_level=0.95,
+                       print_to_console=False, parallel=True, n_processors=4)
+
+# Example for Delta
+Si_delta = delta.analyze(problem, X, Y, num_resamples=1000, conf_level=0.95,
+                         print_to_console=False, parallel=True, n_processors=4)
+
+# Example for DGSM
+Si_dgsm = dgsm.analyze(problem, X, Y, num_resamples=1000, conf_level=0.95,
+                       print_to_console=False, parallel=True, n_processors=4)
+```
+
+The `n_processors` argument specifies the number of CPU cores to use. If set to `None` (the default when `parallel=True` but `n_processors` is not given), it will typically use all available cores. The `multiprocess` library is used for parallel execution.
+
+For an explanation of all command line options for each method, [see the examples here](https://github.com/SALib/SALib/tree/main/examples).
 
 
 ### Groups of variables (Sobol and Morris methods only)
