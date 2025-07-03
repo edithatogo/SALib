@@ -43,6 +43,16 @@ Sobol' Sensitivity Analysis
 .. autofunction:: SALib.analyze.sobol.analyze
    :noindex:
 
+Sobol' Sensitivity Analysis for Correlated Inputs
+-------------------------------------------------
+**Note: This method is experimental.**
+
+.. autofunction:: SALib.sample.sobol_correlated.sample
+   :noindex:
+
+.. autofunction:: SALib.analyze.sobol_correlated.analyze
+   :noindex:
+
 Delta Moment-Independent Measure
 --------------------------------
 
