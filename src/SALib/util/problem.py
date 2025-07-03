@@ -655,11 +655,54 @@ class ProblemSpec(dict):
 def _check_spec_attributes(spec: ProblemSpec):
     assert "names" in spec, "Names not defined"
     assert "bounds" in spec, "Bounds not defined"
-    assert len(spec["bounds"]) == len(
-        spec["names"]
-    ), f"""Number of bounds do not match number of names
-        Number of names:
-        {len(spec['names'])} | {spec['names']}
-        ----------------
-        Number of bounds: {len(spec['bounds'])}
-        """
+    num_vars = len(spec["names"])
+    assert len(spec["bounds"]) == num_vars, (
+        f"Number of bounds ({len(spec['bounds'])}) does not match number of names ({num_vars}).\n"
+        f"Names: {spec['names']}\n"
+        f"Bounds: {spec['bounds']}"
+    )
+
+    if "corr_matrix" in spec:
+        corr_matrix = spec["corr_matrix"]
+        assert isinstance(corr_matrix, np.ndarray), "`corr_matrix` must be a NumPy array."
+        assert corr_matrix.ndim == 2, "`corr_matrix` must be a 2D array."
+        assert corr_matrix.shape[0] == corr_matrix.shape[1], "`corr_matrix` must be square."
+        assert corr_matrix.shape[0] == num_vars, \
+            f"`corr_matrix` dimensions ({corr_matrix.shape[0]}x{corr_matrix.shape[1]}) " \
+            f"do not match num_vars ({num_vars})."
+
+        atol = 1e-8  # Absolute tolerance for floating point comparisons
+
+        # Check symmetry
+        assert np.allclose(corr_matrix, corr_matrix.T, atol=atol), \
+            "`corr_matrix` must be symmetric."
+
+        # Check diagonal elements are 1
+        assert np.allclose(np.diag(corr_matrix), 1.0, atol=atol), \
+            "Diagonal elements of `corr_matrix` must be 1."
+
+        # Check off-diagonal elements are between -1 and 1
+        # Create a mask for off-diagonal elements
+        off_diag_mask = ~np.eye(corr_matrix.shape[0], dtype=bool)
+        off_diag_elements = corr_matrix[off_diag_mask]
+        assert np.all((off_diag_elements >= -1.0 - atol) & (off_diag_elements <= 1.0 + atol)), \
+            "Off-diagonal elements of `corr_matrix` must be between -1 and 1."
+
+        # Check positive semi-definiteness (all eigenvalues >= 0)
+        try:
+            eigenvalues = np.linalg.eigvalsh(corr_matrix)
+        except np.linalg.LinAlgError:
+            # This can happen if matrix is not symmetric or other issues
+            raise ValueError("Could not compute eigenvalues for `corr_matrix`. Ensure it is symmetric and valid.")
+
+        assert np.all(eigenvalues >= -atol), \
+            (f"corr_matrix` must be positive semi-definite. "
+             f"Found negative eigenvalues: {eigenvalues[eigenvalues < -atol]}")
+
+    # Add other checks as needed e.g. for dists
+    if "dists" in spec:
+        assert len(spec["dists"]) == num_vars, (
+            f"Number of distributions ({len(spec['dists'])}) does not match number of names ({num_vars}).\n"
+            f"Names: {spec['names']}\n"
+            f"Distributions: {spec['dists']}"
+        )

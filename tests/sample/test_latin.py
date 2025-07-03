@@ -1,6 +1,8 @@
 from SALib.sample.latin import sample
-from pytest import approx
+from SALib.util.problem import ProblemSpec # For easier problem definition
+from pytest import approx, raises
 import numpy as np
+from scipy.stats import spearmanr
 
 
 class TestLatinSample:
@@ -142,3 +144,83 @@ class TestLatinSample:
 
         diff = np.ptp(samples[:, 1::2], axis=1)
         assert np.all(diff == 0), "Grouped samples do not have the same values"
+
+    def test_latin_correlation_and_groups_error(self):
+        problem_dict = {
+            "num_vars": 2,
+            "names": ["x1", "x2"],
+            "bounds": [[0, 1], [0, 1]],
+            "groups": ["g1", "g1"], # Define groups
+            "corr_matrix": np.array([[1.0, 0.5], [0.5, 1.0]]) # Also define corr_matrix
+        }
+        problem = ProblemSpec(problem_dict)
+        with raises(ValueError, match="Groups and corr_matrix cannot be used simultaneously"):
+            sample(problem, 10)
+
+    def test_latin_sample_correlated_generation_2vars(self):
+        N_test = 2000 # Number of samples for testing correlation
+        problem_dict = {
+            "num_vars": 2,
+            "names": ["x1", "x2"],
+            "bounds": [[0, 1], [0, 1]], # Output will be U[0,1], easy to check rank corr
+            "corr_matrix": np.array([[1.0, 0.8],
+                                     [0.8, 1.0]])
+        }
+        problem = ProblemSpec(problem_dict)
+
+        # Using ProblemSpec to ensure corr_matrix is validated
+        # No need to catch problem spec validation error here, it's tested elsewhere.
+
+        samples_correlated = sample(problem, N_test, seed=123)
+
+        assert samples_correlated.shape == (N_test, 2)
+        # Check marginals are still U[0,1] (basic check)
+        assert np.all(samples_correlated >= 0.0) and np.all(samples_correlated <= 1.0)
+        # Check min/max are close to 0 and 1 for U[0,1]
+        # LHS specific: check stratification if possible (harder for correlated)
+        # For now, focus on correlation and basic bounds.
+        assert np.min(samples_correlated[:,0]) < 0.1 # Roughly, should be small
+        assert np.max(samples_correlated[:,0]) > 0.9 # Roughly, should be large
+        assert np.min(samples_correlated[:,1]) < 0.1
+        assert np.max(samples_correlated[:,1]) > 0.9
+
+
+        # Calculate Spearman rank correlation from the generated samples
+        # These samples are already in the [0,1] range, reflecting the rank correlation
+        spearman_corr_matrix, _ = spearmanr(samples_correlated)
+
+        # Check if the empirical correlation is close to the target
+        # For rank correlation from Iman & Conover method, it should be quite close
+        # to the target Pearson correlation of the normal variables.
+        target_corr = problem["corr_matrix"][0, 1]
+        empirical_corr = spearman_corr_matrix[0, 1]
+
+        # Tolerance can be relatively loose due to sampling variability
+        assert empirical_corr == approx(target_corr, abs=0.05), \
+            f"Empirical rank correlation {empirical_corr:.3f} not close to target {target_corr:.3f}"
+
+    def test_latin_sample_correlated_generation_3vars(self):
+        N_test = 3000 # More samples for 3 vars
+        problem_dict = {
+            "num_vars": 3,
+            "names": ["x1", "x2", "x3"],
+            "bounds": [[0, 1], [0, 1], [0,1]], # U[0,1] marginals
+            "corr_matrix": np.array([[1.0, 0.7, 0.3],
+                                     [0.7, 1.0, 0.5],
+                                     [0.3, 0.5, 1.0]])
+        }
+        problem = ProblemSpec(problem_dict)
+        samples_correlated = sample(problem, N_test, seed=456)
+
+        assert samples_correlated.shape == (N_test, 3)
+        assert np.all(samples_correlated >= 0.0) and np.all(samples_correlated <= 1.0)
+
+        spearman_corr_matrix, _ = spearmanr(samples_correlated)
+
+        # Check all off-diagonal elements
+        assert spearman_corr_matrix[0, 1] == approx(problem["corr_matrix"][0, 1], abs=0.05)
+        assert spearman_corr_matrix[0, 2] == approx(problem["corr_matrix"][0, 2], abs=0.05)
+        assert spearman_corr_matrix[1, 2] == approx(problem["corr_matrix"][1, 2], abs=0.05)
+
+        # Check diagonal elements are 1 (or very close)
+        assert np.allclose(np.diag(spearman_corr_matrix), 1.0, atol=1e-3)

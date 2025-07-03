@@ -114,6 +114,59 @@ The output can then be converted to a Pandas DataFrame for further analysis.
 total_Si, first_Si, second_Si = Si.to_df()
 ```
 
+### Defining Correlated Inputs
+
+SALib supports the generation of samples with a defined rank correlation structure through Latin Hypercube Sampling (LHS). This is useful when input parameters to a model are known to be correlated.
+
+To specify correlations, include a `corr_matrix` key in your problem definition. The value should be a NumPy array representing the desired rank correlation matrix (Spearman's rho).
+
+**Example Problem Definition with `corr_matrix`:**
+```python
+import numpy as np
+
+problem = {
+    'num_vars': 3,
+    'names': ['x1', 'x2', 'x3'],
+    'bounds': [[0.0, 1.0], [-1.0, 1.0], [10.0, 20.0]],
+    # Define desired rank correlation matrix (Spearman's rho)
+    'corr_matrix': np.array([[1.0, 0.7, 0.3],
+                             [0.7, 1.0, -0.5],
+                             [0.3, -0.5, 1.0]]),
+    # Optionally, define marginal distributions for each parameter
+    'dists': ['unif', 'norm', 'unif'] # x1: U(0,1), x2: N(0,1) (bounds become loc,scale), x3: U(10,20)
+}
+
+# If 'dists' for 'norm' is specified, the corresponding 'bounds' entry
+# should be [mean, std_dev]. For 'unif', it's [lower_bound, upper_bound].
+# If 'dists' is not specified, all parameters are assumed to be uniform
+# according to their 'bounds'.
+```
+
+**Validation:**
+The `corr_matrix` must be:
+- A square NumPy array with dimensions equal to `num_vars`.
+- Symmetric.
+- Have diagonal elements equal to 1.
+- Have off-diagonal elements between -1 and 1.
+- Positive semi-definite.
+These properties are validated when the problem dictionary is used (e.g., by `ProblemSpec` or directly by samplers).
+
+**Sampling with Correlated Inputs:**
+Currently, `SALib.sample.latin.sample` (and its `ProblemSpec.sample_latin()` counterpart) can generate samples respecting this `corr_matrix`. It uses an Iman and Conover (1982) style procedure to induce the specified rank correlation.
+```python
+from SALib.sample import latin
+# Assuming 'problem' is defined as above
+param_values_correlated = latin.sample(problem, N=1024, seed=101)
+```
+
+**Important Considerations for Analysis:**
+When input parameters are correlated:
+- **Standard sensitivity indices** (e.g., Sobol, FAST, Morris, DGSM) can be misleading if their standard interpretations are used, as these methods often assume input independence. SALib will issue warnings when these analysis methods are used with a problem spec containing a `corr_matrix`.
+- **Moment-independent methods** like the Delta Moment-Independent Measure (`delta.analyze`) are generally more robust to input correlations, but interpretation still requires caution.
+- Always carefully consider the implications of correlations on your sensitivity analysis results. Specialized SA methods for correlated inputs exist in literature but are not yet all implemented in SALib.
+
+Refer to the documentation of individual analysis functions for specific warnings and guidance.
+
 
 ### Generating alternate distributions
 

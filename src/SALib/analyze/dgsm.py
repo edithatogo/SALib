@@ -2,6 +2,7 @@ from scipy.stats import norm
 
 import numpy as np
 from multiprocess import Pool
+import warnings
 
 from . import common_args
 from ..util import read_param_file, ResultDict
@@ -29,6 +30,13 @@ def analyze(
     -----
     Compatible with:
         `finite_diff` : :func:`SALib.sample.finite_diff.sample`
+
+    **Warning:** The DGSM method, like other variance-based methods,
+    typically assumes independent input parameters for a standard
+    interpretation of its sensitivity measures (vi, dgsm). If parameters
+    are correlated, the influence of one parameter might be confounded by
+    those it is correlated with. Interpret results with caution if inputs
+    are known to be significantly correlated.
 
 
     Examples
@@ -71,6 +79,12 @@ def analyze(
     """
     if seed:
         np.random.seed(seed)
+
+    if problem.get("corr_matrix") is not None:
+        warnings.warn("Warning: The DGSM method assumes independent input parameters "
+                      "for its standard interpretation. The problem definition "
+                      "includes a 'corr_matrix', indicating correlated inputs. "
+                      "Interpret results with caution. See documentation for details.", UserWarning)
 
     D = problem["num_vars"]
     Y_size = Y.size

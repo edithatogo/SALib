@@ -2,6 +2,7 @@ import math
 import numpy as np
 from scipy.stats import norm
 from multiprocess import Pool
+import warnings
 
 from . import common_args
 from ..util import read_param_file, ResultDict
@@ -28,6 +29,16 @@ def analyze(
     -----
     Compatible with:
         `fast_sampler` : :func:`SALib.sample.fast_sampler.sample`
+
+    **Warning:** The FAST method, like other variance-based methods such as
+    Sobol, assumes independent input parameters. If the parameters in your
+    model are correlated, the standard FAST indices (S1, ST) can be
+    misleading. The interpretation of these indices relies on the independence
+    assumption. Using this method with correlated inputs may require
+    specialized interpretation or alternative formulations not currently
+    implemented here. Consider using methods more robust to correlations
+    (like Delta Moment-Independent) or transforming inputs if correlations
+    are present.
 
     Examples
     --------
@@ -75,6 +86,12 @@ def analyze(
     """
     if seed:
         np.random.seed(seed)
+
+    if problem.get("corr_matrix") is not None:
+        warnings.warn("Warning: The FAST method assumes independent input parameters. "
+                      "The problem definition includes a 'corr_matrix', indicating correlated inputs. "
+                      "Standard FAST indices (S1, ST) may be misleading under correlation. "
+                      "Interpret results with caution. See documentation for more details.", UserWarning)
 
     D = problem["num_vars"]
 

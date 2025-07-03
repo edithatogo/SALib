@@ -1,4 +1,6 @@
 import numpy as np
+from scipy.stats import norm as scipy_norm # For ppf and cdf
+from scipy.linalg import cholesky # More robust for positive semi-definite
 
 from . import common_args
 from ..util import read_param_file, scale_samples, compute_groups_matrix
@@ -11,13 +13,34 @@ def sample(problem, N, seed=None):
     hypercube sampling.  The resulting matrix contains N rows and D columns,
     where D is the number of parameters.
 
+    This sampler can also generate LHS samples with a specified rank correlation
+    matrix if `problem['corr_matrix']` is provided. It uses an Iman and
+    Conover (1982) style procedure: independent LHS samples are generated,
+    transformed to normal, correlation is induced via Cholesky decomposition of
+    the target correlation matrix, and then transformed back to uniform [0,1]
+    preserving rank correlations. These [0,1] samples are then scaled to their
+    specified marginal distributions.
+
+    If `problem['groups']` is specified, parameters within the same group will
+    receive the same underlying [0,1] sample value. `groups` and `corr_matrix`
+    cannot be used simultaneously.
+
     Parameters
     ----------
     problem : dict
-        The problem definition
+        The problem definition. Must contain:
+        - `num_vars` : int, the number of parameters.
+        - `names` : list of str, the names of the parameters.
+        - `bounds` : list of lists, the lower and upper bounds for each parameter.
+        Optionally, can contain:
+        - `dists` : list of str, the marginal distribution for each parameter.
+                    If not given, all are assumed uniform.
+        - `corr_matrix` : np.ndarray, the target rank correlation matrix (Spearman's rho).
+                          If provided, samples will be correlated.
+        - `groups` : list of str, group names for parameters. Cannot be used with `corr_matrix`.
     N : int
-        The number of samples to generate
-    seed : int
+        The number of samples to generate.
+    seed : int, optional
         Seed to generate a random number
 
     References
@@ -36,42 +59,82 @@ def sample(problem, N, seed=None):
            https://doi.org/10.1080/00224065.1981.11978748
 
     """
-    num_samples = N
-
     if seed:
         np.random.seed(seed)
 
+    num_vars = problem["num_vars"]
     groups = problem.get("groups")
+    corr_matrix = problem.get("corr_matrix")
+    num_samples = N # Renaming N to num_samples for clarity inside function
+
+    if groups and corr_matrix is not None:
+        raise ValueError(
+            "The 'groups' option and 'corr_matrix' option cannot be used simultaneously "
+            "in Latin Hypercube Sampling."
+        )
+
+    d_strata = 1.0 / num_samples  # Stratum size
+    final_samples_0_1 = np.empty([num_samples, num_vars])
+
     if groups:
-        num_groups = len(set(groups))
-        G, group_names = compute_groups_matrix(groups)
-    else:
-        num_groups = problem["num_vars"]
+        # Logic for groups (implies corr_matrix is None due to check above)
+        G, _ = compute_groups_matrix(groups)
+        num_effective_vars = G.shape[1]  # Number of unique groups
 
-    result = np.empty([num_samples, problem["num_vars"]])
-    temp = np.empty([num_samples])
-    d = 1.0 / num_samples
+        # Generate LHS for each unique group in [0,1]
+        temp_group_samples = np.empty([num_samples, num_effective_vars])
+        for j in range(num_effective_vars):
+            stratum_pts = np.random.uniform(low=0.0, high=d_strata, size=num_samples) + \
+                          np.arange(num_samples) * d_strata
+            np.random.shuffle(stratum_pts)
+            temp_group_samples[:, j] = stratum_pts
 
-    temp = np.array(
-        [
-            np.random.uniform(low=sample * d, high=(sample + 1) * d, size=num_groups)
-            for sample in range(num_samples)
-        ]
-    )
+        # Expand samples to full num_vars based on group membership
+        for i_var in range(num_vars):
+            group_membership = G[i_var, :]
+            unique_group_index = np.where(group_membership == 1)[0][0]
+            final_samples_0_1[:, i_var] = temp_group_samples[:, unique_group_index]
 
-    for group in range(num_groups):
-        np.random.shuffle(temp[:, group])
+    else:  # No groups defined. Handles both (corr_matrix is None) and (corr_matrix is not None)
+        # Generate independent LHS for all num_vars in [0,1] initially
+        for j in range(num_vars):
+            stratum_pts = np.random.uniform(low=0.0, high=d_strata, size=num_samples) + \
+                          np.arange(num_samples) * d_strata
+            np.random.shuffle(stratum_pts)
+            final_samples_0_1[:, j] = stratum_pts
 
-        for sample in range(num_samples):
-            if groups:
-                grouped_variables = np.where(G[:, group] == 1)
-                result[sample, grouped_variables[0]] = temp[sample, group]
-            else:
-                result[sample, group] = temp[sample, group]
+        if corr_matrix is not None:
+            # Induce correlation on the independent LHS samples
+            epsilon = 1e-10  # To avoid issues at boundaries with ppf/cdf
 
-    result = scale_samples(result, problem)
+            # 1. Transform independent U(0,1) samples to N(0,1)
+            normal_samples = scipy_norm.ppf(np.clip(final_samples_0_1, epsilon, 1 - epsilon))
 
-    return result
+            # 2. Cholesky decomposition of the correlation matrix
+            try:
+                # Ensure corr_matrix is float64 for cholesky, as it might come from user input
+                L = cholesky(np.array(corr_matrix, dtype=np.float64), lower=True)
+            except np.linalg.LinAlgError as e:
+                raise np.linalg.LinAlgError(
+                    f"Cholesky decomposition failed for the correlation matrix. "
+                    f"Ensure it is positive definite. Original error: {e}"
+                )
+
+            # 3. Induce correlation: Y = X @ L.T
+            #    where X rows are independent N(0,1) vectors.
+            #    The rows of Y will then have covariance L @ L.T = corr_matrix.
+            correlated_normal_samples = normal_samples @ L.T
+
+            # 4. Transform correlated N(0,1) samples back to U(0,1)
+            #    This preserves the rank correlation structure.
+            final_samples_0_1 = scipy_norm.cdf(correlated_normal_samples)
+            # Clip again to avoid potential exact 0s or 1s from CDF of extreme normal values
+            final_samples_0_1 = np.clip(final_samples_0_1, epsilon, 1 - epsilon)
+
+    # Scale samples from [0,1] to their actual parameter distributions and bounds
+    scaled_samples = scale_samples(final_samples_0_1, problem)
+
+    return scaled_samples
 
 
 # No additional CLI options

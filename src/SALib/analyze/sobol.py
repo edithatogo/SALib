@@ -52,6 +52,16 @@ def analyze(
         `saltelli` : :func:`SALib.sample.saltelli.sample`
         `sobol` : :func:`SALib.sample.sobol.sample`
 
+    **Warning:** The Sobol method assumes independent input parameters.
+    If the parameters in your model are correlated, the standard Sobol
+    indices can be misleading. The interpretation of S1 as the "main effect"
+    and ST as the "total effect" of a parameter relies on this independence
+    assumption. Using this method with correlated inputs may require
+    specialized interpretation or alternative formulations of Sobol indices
+    not currently implemented here. Consider using methods more robust to
+    correlations (like Delta Moment-Independent) or transforming inputs if
+    correlations are present.
+
 
     Examples
     --------
@@ -115,6 +125,12 @@ def analyze(
         rng = np.random.default_rng(seed).integers
     else:
         rng = np.random.randint
+
+    if problem.get("corr_matrix") is not None:
+        warn("Warning: The Sobol method assumes independent input parameters. "
+             "The problem definition includes a 'corr_matrix', indicating correlated inputs. "
+             "Standard Sobol indices (S1, ST, S2) may be misleading under correlation. "
+             "Interpret results with caution. See documentation for more details.", UserWarning)
 
     # Determine if groups are defined and adjusting the number
     # of rows in the cross-sampled matrix accordingly

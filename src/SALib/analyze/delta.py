@@ -34,6 +34,15 @@ def analyze(
     Compatible with:
         all samplers
 
+    The Delta Moment-Independent Measure is generally considered robust to
+    dependencies/correlations between input parameters. However, when input
+    parameters are correlated, the interpretation of sensitivity indices
+    requires caution. While the Delta index measures the shift in the output
+    distribution due to a parameter, strong correlations can mean that the
+    "importance" of one parameter is intertwined with others it is correlated
+    with. It is advisable to be aware of the correlation structure when
+    interpreting results.
+
 
     Examples
     --------

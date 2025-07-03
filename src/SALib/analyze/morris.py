@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import norm
 from multiprocess import Pool
 import functools
+import warnings
 
 from . import common_args
 from ..util import (
@@ -66,6 +67,14 @@ def analyze(
 
     Compatible with:
         `morris` : :func:`SALib.sample.morris.sample`
+
+    **Warning:** The Morris method, while a screening method and not strictly
+    variance-based like Sobol or FAST, typically assumes independent input
+    parameters for straightforward interpretation of elementary effects.
+    If parameters are correlated, the effect of one parameter might be
+    confounded by those it is correlated with, making it harder to isolate
+    individual parameter importance. Interpret with caution if inputs are
+    known to be significantly correlated.
 
     Examples
     --------
@@ -141,9 +150,14 @@ def analyze(
         Applied Energy, Volume 202, 15 September 2017, Pages 597-617
         https://doi.org/10.1016/j.apenergy.2017.05.106
     """
-
     if seed:
         np.random.seed(seed)
+
+    if problem.get("corr_matrix") is not None:
+        warnings.warn("Warning: The Morris method assumes independent input parameters "
+                      "for straightforward interpretation. The problem definition "
+                      "includes a 'corr_matrix', indicating correlated inputs. "
+                      "Interpret results with caution. See documentation for details.", UserWarning)
 
     _define_problem_with_groups(problem)
 
