@@ -14,18 +14,18 @@ The method implemented is based on the concept of estimating "full" first-order 
 
 The key idea is to evaluate how the output variance changes when an input :math:`X_i` is fixed (for first-order effects) or when all other inputs :math:`X_{\\sim i}` are fixed (for total-order effects), under the true joint distribution of the correlated inputs.
 
-**Important Note:** This implementation is experimental. The estimators used are consistent with approaches for estimating "full" sensitivity indices in the presence of correlated inputs, such as those discussed in:
+**Important Note:** This implementation is **experimental**. The estimators used are designed to calculate "full" sensitivity indices, which account for input correlations. These estimators are consistent with principles and forms discussed in literature addressing sensitivity analysis with dependent inputs. Key inspirational references include:
 
-*   Janon, A., Klein, T., Lagnoux, A., Nodet, M., & Prieur, C. (2013). Variance-based sensitivity analysis for model output with dependent inputs. *Communications in Applied and Industrial Mathematics, 5*(1), e-413.
-*   Mara, T. A., & Tarantola, S. (2012). Variance-based sensitivity indices for models with dependent inputs. *Reliability Engineering & System Safety, 107*, 115-121.
-*   Kucherenko, S., Tarantola, S., & Annoni, P. (2009). Estimation of global sensitivity indices for models with dependent variables. *Computer Physics Communications, 180*(12), 2570-2583.
+*   **Janon, A., Klein, T., Lagnoux, A., Nodet, M., & Prieur, C. (2013).** Variance-based sensitivity analysis for model output with dependent inputs. *Communications in Applied and Industrial Mathematics, 5*(1), e-413. (Provides context for first and total order full effects).
+*   **Saltelli, A. (2002).** Making best use of model evaluations to compute sensitivity indices. *Computer Physics Communications, 145*(2), 280-297. (The structural form of the second-order estimator is analogous to estimators for independent inputs presented here, adapted for the correlated sampling scheme).
+*   **Mara, T. A., & Tarantola, S. (2012).** Variance-based sensitivity indices for models with dependent inputs. *Reliability Engineering & System Safety, 107*, 115-121. (General context on SA with dependent inputs).
 
-Users should consult this literature for a detailed understanding of the theoretical background, properties, and interpretation of such indices.
+Users **must** consult this and other relevant academic literature for a detailed understanding of the theoretical background, precise definitions, properties, and interpretation of such "full" indices in correlated systems.
 
 Indices Calculated
 ------------------
 
-The `analyze_sobol_correlated` function estimates the following "full" indices using specific Monte Carlo estimators:
+The `analyze_sobol_correlated` function estimates the following "full" indices, based on the methodologies referenced above, using specific Monte Carlo estimators:
 
 *   **S1_full (Full First-Order Index):**
     This index quantifies the main effect of :math:`X_i` on the output :math:`Y`, inclusive of effects shared due to its correlation with other input variables.

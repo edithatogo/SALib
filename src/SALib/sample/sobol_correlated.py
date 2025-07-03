@@ -15,13 +15,17 @@ def sample(problem: dict, N: int, calc_second_order: bool = True, seed: int = No
     """
     Generates samples for a correlation-aware Sobol sensitivity analysis method.
 
-    This sampler produces the necessary input matrices for estimating
-    "full" first-order and total-order sensitivity indices when input parameters
-    are correlated. The sampling scheme generates N * (2 + 2*D) samples,
-    where D is the number of parameters.
+    This sampler produces the necessary input matrices for estimating "full"
+    first-order, total-order, and second-order sensitivity indices when input
+    parameters are correlated, consistent with methodologies like those discussed
+    in Janon et al. (2013) and adaptations of Saltelli (2002) for such contexts.
+    The sampling scheme generates N * (2 + 2*D) samples, where D is the
+    number of parameters.
 
     It requires a `corr_matrix` to be defined in the `problem` dictionary.
-    The base samples (A and B) are generated using correlated Latin Hypercube Sampling.
+    The base sample matrices (X_A and X_B) are generated using correlated
+    Latin Hypercube Sampling (`SALib.sample.latin.sample`). Hybrid matrices
+    (X_Ci and X_Di) are then constructed from X_A and X_B.
 
     Parameters
     ----------
