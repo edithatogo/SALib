@@ -97,3 +97,16 @@ Discrepancy Sensitivity Indices
 
 .. autofunction:: SALib.analyze.discrepancy.analyze
    :noindex:
+
+Interactive Plotting (Experimental)
+-----------------------------------
+**Note: Requires Plotly to be installed.**
+
+.. automodule:: SALib.plotting.interactive
+   :noindex:
+
+.. autofunction:: SALib.plotting.interactive.raincloud_interactive
+   :noindex:
+
+.. autofunction:: SALib.plotting.interactive.bar_plot_interactive
+   :noindex:

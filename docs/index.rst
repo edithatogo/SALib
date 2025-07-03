@@ -51,6 +51,7 @@ Getting Started
    SALib Interface <user_guide/basics_with_interface>
    Advanced <user_guide/advanced>
    Correlated Inputs (Sobol-Correlated) <user_guide/correlated_sobol>
+   Interactive Plotting (Experimental) <user_guide/interactive_plotting>
    Wrappers <user_guide/wrappers>
    FAQ <user_guide/faq>
 

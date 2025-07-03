@@ -43,9 +43,13 @@ dependencies = [
 distributed = [
     "pathos>=0.3.2",
 ]
+plotting_interactive = [
+    "plotly>=5.0", # Specify a reasonable minimum version
+]
 
 test = [
     "SALib[distributed]",
+    "SALib[plotting_interactive]", # Add to test dependencies to ensure it's tested
     "pytest",
     "pytest-cov",
 ]
