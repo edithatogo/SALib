@@ -40,6 +40,13 @@ The `analyze_sobol_correlated` function estimates the following "full" indices u
     :math:`\hat{ST}_{full,i} = \frac{\frac{1}{2N} \sum_{k=1}^{N} (Y_A^{(k)} - Y_{D_i}^{(k)})^2}{\hat{V}(Y)}`
     where :math:`Y_{D_i} = f(X_{A,\sim i}, X_{B,i})`. This estimates :math:`\frac{E[(Y_A - Y_{D_i})^2]}{2V(Y)}`.
 
+*   **S2_full (Full Second-Order Index):**
+    This index quantifies the interaction effect between :math:`X_i` and :math:`X_j` on :math:`Y`, inclusive of effects shared due to their joint correlations with other input variables and their own mutual correlation.
+    The implemented estimator, inspired by adaptations of Saltelli (2002) for dependent inputs, is:
+    :math:`\hat{S2}_{full,ij} = \frac{ \left( \frac{1}{N} \sum_{k=1}^{N} Y_{C_i}^{(k)} Y_{D_j}^{(k)} \right) - E[Y_A]E[Y_B] }{\hat{V}(Y)} - \hat{S1}_{full,i} - \hat{S1}_{full,j}`
+    where :math:`Y_{C_i} = f(X_{A,i}, X_{B,\sim i})` and :math:`Y_{D_j} = f(X_{A,\sim j}, X_{B,j})`.
+    This index can also be negative due to estimator variance or complex correlation effects.
+
 Confidence intervals for these indices are estimated using bootstrapping.
 
 Usage
@@ -101,6 +108,9 @@ Use the `SALib.analyze.sobol_correlated.analyze` function.
     # Si_correlated['S1_full_conf']
     # Si_correlated['ST_full']
     # Si_correlated['ST_full_conf']
+    # If calc_second_order=True:
+    # Si_correlated['S2_full']
+    # Si_correlated['S2_full_conf']
 
 Interpretation
 --------------
@@ -111,11 +121,12 @@ Interpretation
 *   A high `S1_full` suggests :math:`X_i` is important on its own, even accounting for its correlations.
 *   A high `ST_full` suggests :math:`X_i` is involved in the model's behavior, either directly or through interactions, considering correlations.
 *   The difference `ST_full - S1_full` can give an indication of the importance of :math:`X_i` due to interactions, but this also includes correlation effects.
+*   `S2_full_ij` provides a measure of the joint importance of :math:`X_i` and :math:`X_j` beyond their first-order effects, within the correlated system. Its interpretation requires care, especially if it's negative.
 
 **Limitations & Cautions:**
-*   **Experimental:** This method should be considered experimental. The exact interpretation and properties of these "full" indices can be complex and depend on the specific mathematical definitions chosen from literature.
-*   **Estimator Choice:** The specific estimators used here are common but might differ from other proposed estimators for correlated inputs. Always refer to the source literature for precise definitions if making critical decisions based on these indices.
-*   **No Standard Second-Order:** Currently, "full" second-order indices are not calculated by `analyze_sobol_correlated`.
+*   **Experimental:** This method, including S2_full, should be considered experimental. The exact interpretation and properties of these "full" indices can be complex and depend on the specific mathematical definitions chosen from literature.
+*   **Estimator Choice:** The specific estimators used here are inspired by common approaches but might differ from other proposed estimators for correlated inputs. Always refer to the source literature for precise definitions if making critical decisions based on these indices.
+*   **Higher-Order Interactions:** Interactions beyond second-order are not explicitly quantified by this method.
 *   **Alternative Approaches:** Other approaches for SA with correlated inputs exist, such as transforming inputs to an uncorrelated space (though this can make interpretation difficult) or using regression-based measures.
 
 Always complement these quantitative indices with qualitative understanding of your model and the nature of the input correlations.

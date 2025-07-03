@@ -16,7 +16,8 @@ def _bootstrap_sobol_correlated_worker(args):
     Recalculates S1_full and ST_full for a single bootstrap sample of Y values.
     """
     (   Y_A_boot, Y_B_boot, Y_C_i_all_boot, Y_D_i_all_boot,
-        D_vars, N_base, V_Y_total_variance_boot # Pass total variance of this bootstrap sample
+        D_vars, N_base, V_Y_total_variance_boot, # Pass total variance of this bootstrap sample
+        calc_second_order_flag # New argument
     ) = args
 
     s1_full_boot = np.empty(D_vars)
@@ -35,7 +36,24 @@ def _bootstrap_sobol_correlated_worker(args):
         Y_Di_boot = Y_D_i_all_boot[:, i] # Y_D_i for this bootstrap sample
         st_full_boot[i] = (0.5 * np.mean((Y_A_boot - Y_Di_boot)**2)) / V_Y_total_variance_boot if V_Y_total_variance_boot != 0 else 0.0
 
-    return s1_full_boot, st_full_boot
+    s2_full_boot = None # Default if not calculated
+    if calc_second_order_flag:
+        s2_full_boot = np.full((D_vars, D_vars), np.nan)
+        mean_YA_boot = np.mean(Y_A_boot)
+        mean_YB_boot = np.mean(Y_B_boot)
+        for i in range(D_vars):
+            for j in range(i + 1, D_vars):
+                Y_Ci_boot = Y_C_i_all_boot[:, i]
+                Y_Dj_boot = Y_D_i_all_boot[:, j] # Y_Dj from the D_i_all matrix
+
+                numerator_S2_ij_boot = np.mean(Y_Ci_boot * Y_Dj_boot) - mean_YA_boot * mean_YB_boot
+                s2_val_boot = (numerator_S2_ij_boot / V_Y_total_variance_boot if V_Y_total_variance_boot != 0 else 0.0) \
+                              - s1_full_boot[i] - s1_full_boot[j]
+
+                s2_full_boot[i, j] = s2_val_boot
+                s2_full_boot[j, i] = s2_val_boot
+
+    return s1_full_boot, st_full_boot, s2_full_boot
 
 
 def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
@@ -51,21 +69,24 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
     (which assume input independence).
 
     The implemented estimators are:
-    - For S1_full_i:
-      :math:`S1\_full_i = ( \\frac{1}{N} \\sum_{k=1}^{N} Y_A^{(k)} Y_{C_i}^{(k)} - E[Y_A] E[Y_{C_i}] ) / V(Y)`
-      This estimates :math:`Cov(Y_A, Y_{C_i}) / V(Y)`, where :math:`Y_A = f(X_A)`
-      and :math:`Y_{C_i} = f(X_{A,i}, X_{B,\\sim i})`.
-    - For ST_full_i:
-      :math:`ST\_full_i = ( \\frac{1}{2N} \\sum_{k=1}^{N} (Y_A^{(k)} - Y_{D_i}^{(k)})^2 ) / V(Y)`
-      This estimates :math:`(0.5 \\times E[(Y_A - Y_{D_i})^2]) / V(Y)`, where
-      :math:`Y_{D_i} = f(X_{A,\\sim i}, X_{B,i})`.
+    - For S1_full_i (:math:`S_i^F`):
+      :math:`\hat{S1}_{full,i} = \frac{ \text{Cov}(Y_A, Y_{C_i}) }{ \hat{V}(Y) } = \frac{ \frac{1}{N} \sum_{k=1}^{N} Y_A^{(k)} Y_{C_i}^{(k)} - E[Y_A] E[Y_{C_i}] }{ \hat{V}(Y) }`
+      where :math:`Y_A = f(X_A)`, :math:`Y_{C_i} = f(X_{A,i}, X_{B,\sim i})`.
+    - For ST_full_i (:math:`ST_i^F`):
+      :math:`\hat{ST}_{full,i} = \frac{ \frac{1}{2N} \sum_{k=1}^{N} (Y_A^{(k)} - Y_{D_i}^{(k)})^2 }{ \hat{V}(Y) }`
+      where :math:`Y_{D_i} = f(X_{A,\sim i}, X_{B,i})`.
+    - If `calc_second_order` is True, for S2_full_ij (:math:`S_{ij}^F`):
+      :math:`\hat{S2}_{full,ij} = \frac{ \text{Cov}(Y_{C_i}, Y_{D_j}) - \text{Cov}(Y_A, Y_B) }{ \hat{V}(Y) } - \hat{S1}_{full,i} - \hat{S1}_{full,j}`
+      A common estimator form is used:
+      :math:`\hat{S2}_{full,ij} = \frac{ (\frac{1}{N} \sum_{k=1}^{N} Y_{C_i}^{(k)} Y_{D_j}^{(k)}) - E[Y_A]E[Y_B] }{\hat{V}(Y)} - \hat{S1}_{full,i} - \hat{S1}_{full,j}`
+      where :math:`Y_{C_i} = f(X_{A,i}, X_{B,\sim i})` and :math:`Y_{D_j} = f(X_{A,\sim j}, X_{B,j})`.
+      Note: The precise definition and properties of S2_full can vary in literature.
 
-    These estimators are consistent with approaches for estimating "full"
-    sensitivity indices in the presence of correlated inputs, such as those
-    discussed in literature (e.g., Janon et al., 2013, Comm. App. Ind. Math.;
-    Mara & Tarantola, 2012, RESS; Kucherenko et al., 2009, CPC). Users should
-    consult these references for a detailed theoretical background.
-    This implementation should be considered **experimental**.
+    These estimators are inspired by approaches for estimating "full"
+    sensitivity indices with correlated inputs (e.g., Janon et al., 2013;
+    Mara & Tarantola, 2012; Saltelli, 2002 for S2 structure). Users should
+    consult these references for detailed theoretical background.
+    This implementation is **experimental**.
 
     It expects model outputs `Y` generated from samples produced by
     `SALib.sample.sobol_correlated.sample()`.
@@ -101,10 +122,14 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
     -------
     ResultDict
         A dictionary containing the sensitivity indices:
-        - `S1_full` (np.array): Full first-order indices.
-        - `S1_full_conf` (np.array): Confidence intervals for S1_full.
-        - `ST_full` (np.array): Full total-order indices.
-        - `ST_full_conf` (np.array): Confidence intervals for ST_full.
+        - `S1_full` (np.array): Full first-order indices (D,).
+        - `S1_full_conf` (np.array): Confidence intervals for S1_full (D,).
+        - `ST_full` (np.array): Full total-order indices (D,).
+        - `ST_full_conf` (np.array): Confidence intervals for ST_full (D,).
+        - `S2_full` (np.array, optional): Full second-order indices (D,D).
+          Present if `calc_second_order=True`.
+        - `S2_full_conf` (np.array, optional): Confidence intervals for S2_full (D,D).
+          Present if `calc_second_order=True`.
     """
     if seed is not None:
         np.random.seed(seed)
@@ -178,6 +203,29 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
         Y_Di = Y_D_i_all[:, i]
         ST_full[i] = (0.5 * np.mean((Y_A - Y_Di)**2)) / V_Y
 
+    # Calculate Full Second-Order Indices (S2_full) if requested
+    S2_full = np.full((D, D), np.nan)
+    if calc_second_order:
+        mean_YA = np.mean(Y_A)
+        mean_YB = np.mean(Y_B)
+        for i in range(D):
+            for j in range(i + 1, D):
+                Y_Ci = Y_C_i_all[:, i]
+                Y_Dj = Y_D_i_all[:, j] # Note: Y_Dj uses column j of Y_D_i_all
+                                       # Y_D_i_all[:,j] is Y_Dj = f(X_A_~j, X_B_j)
+
+                # Estimator for S2_full_ij based on conceptual literature alignment:
+                # ( np.mean(Y_Ci * Y_Dj) - np.mean(Y_A) * np.mean(Y_B) ) / V_Y - S1_full[i] - S1_full[j]
+                # This uses Y_Ci and Y_Dj.
+                # Saltelli (2002) for independent inputs uses Y_ABj (my Y_Dj) and Y_BAi (my Y_Ci)
+                # So the product term is np.mean(Y_Ci * Y_Dj)
+
+                numerator_S2_ij = np.mean(Y_Ci * Y_Dj) - mean_YA * mean_YB
+                s2_val = (numerator_S2_ij / V_Y) - S1_full[i] - S1_full[j]
+
+                S2_full[i, j] = s2_val
+                S2_full[j, i] = s2_val # Symmetric
+
     # Confidence Intervals via Bootstrapping
     S1_full_conf_values = np.full(D, np.nan)
     ST_full_conf_values = np.full(D, np.nan)
@@ -200,19 +248,23 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
                 V_Y_boot = np.var(np.concatenate((Y_A_boot, Y_B_boot)), ddof=1)
                 if V_Y_boot == 0: V_Y_boot = 1e-12 # Avoid division by zero in worker if output is constant for a bootstrap sample
 
-                bootstrap_tasks.append((Y_A_boot, Y_B_boot, Y_C_i_all_boot, Y_D_i_all_boot, D, N_base, V_Y_boot))
+                bootstrap_tasks.append((Y_A_boot, Y_B_boot, Y_C_i_all_boot, Y_D_i_all_boot, D, N_base, V_Y_boot, calc_second_order)) # Pass calc_second_order
 
             pool_processors = n_processors
             with Pool(processes=pool_processors) as pool:
                 bootstrap_results = pool.map(_bootstrap_sobol_correlated_worker, bootstrap_tasks)
 
-            # bootstrap_results is a list of tuples [(s1_full_resample1, st_full_resample1), ...]
-            s1_full_resamples = np.array([res[0] for res in bootstrap_results]) # Shape (num_resamples, D)
-            st_full_resamples = np.array([res[1] for res in bootstrap_results]) # Shape (num_resamples, D)
+            s1_full_resamples = np.array([res[0] for res in bootstrap_results])
+            st_full_resamples = np.array([res[1] for res in bootstrap_results])
+            if calc_second_order:
+                s2_full_resamples = np.array([res[2] for res in bootstrap_results]) # Shape (num_resamples, D, D)
+
 
         else: # Serial bootstrapping
             s1_full_resamples = np.empty((num_resamples, D))
             st_full_resamples = np.empty((num_resamples, D))
+            if calc_second_order:
+                s2_full_resamples = np.empty((num_resamples, D, D))
 
             for k in range(num_resamples):
                 sample_indices = np.random.randint(0, N_base, size=N_base)
@@ -222,25 +274,38 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
                 Y_D_i_all_boot = Y_D_i_all[sample_indices, :]
 
                 V_Y_boot = np.var(np.concatenate((Y_A_boot, Y_B_boot)), ddof=1)
-                if V_Y_boot == 0: V_Y_boot = 1e-12 # Avoid division by zero if output is constant for a bootstrap sample
+                if V_Y_boot == 0: V_Y_boot = 1e-12
 
-                args_for_worker = (Y_A_boot, Y_B_boot, Y_C_i_all_boot, Y_D_i_all_boot, D, N_base, V_Y_boot)
-                s1_boot_k, st_boot_k = _bootstrap_sobol_correlated_worker(args_for_worker)
+                args_for_worker = (Y_A_boot, Y_B_boot, Y_C_i_all_boot, Y_D_i_all_boot, D, N_base, V_Y_boot, calc_second_order) # Pass calc_second_order
+                s1_boot_k, st_boot_k, s2_boot_k = _bootstrap_sobol_correlated_worker(args_for_worker)
+
                 s1_full_resamples[k, :] = s1_boot_k
                 st_full_resamples[k, :] = st_boot_k
+                if calc_second_order:
+                    s2_full_resamples[k, :, :] = s2_boot_k
 
         # Calculate confidence intervals from bootstrap resamples
         z_norm = norm.ppf(0.5 + conf_level / 2.0)
         S1_full_conf_values = z_norm * np.std(s1_full_resamples, axis=0, ddof=1)
         ST_full_conf_values = z_norm * np.std(st_full_resamples, axis=0, ddof=1)
 
+        S2_full_conf_values = np.full((D,D), np.nan)
+        if calc_second_order:
+            S2_full_conf_values = z_norm * np.std(s2_full_resamples, axis=0, ddof=1)
+
+
     # Store results
-    Si = ResultDict([
+    results_list = [
         ('S1_full', S1_full),
         ('S1_full_conf', S1_full_conf_values),
         ('ST_full', ST_full),
         ('ST_full_conf', ST_full_conf_values)
-    ])
+    ]
+    if calc_second_order:
+        results_list.append(('S2_full', S2_full))
+        results_list.append(('S2_full_conf', S2_full_conf_values))
+
+    Si = ResultDict(results_list)
     Si['names'] = problem['names'] # Store parameter names
 
     if print_to_console:
