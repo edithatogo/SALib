@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 from types import MethodType
 import warnings
 
@@ -17,7 +17,7 @@ def analyze(
     bins: int = 20,
     target: str = "Y",
     print_to_console: bool = False,
-    seed: int = None,
+    seed: Optional[int] = None,
 ):
     """
     Perform Regional Sensitivity Analysis (RSA), also known as Monte Carlo Filtering.
@@ -128,9 +128,9 @@ def analyze(
     Si["target"] = target
 
     # Attach object methods specific to this sensitivity method to ResultDict.
-    Si.to_df = MethodType(to_df, Si)
-    Si._plot = Si.plot
-    Si.plot = MethodType(plot, Si)
+    Si.to_df = MethodType(to_df, Si)  # type: ignore[assignment]
+    Si._plot = Si.plot  # type: ignore[assignment, attr-defined]
+    Si.plot = MethodType(plot, Si)  # type: ignore[assignment]
 
     if print_to_console:
         print(Si.to_df())

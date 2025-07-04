@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 from scipy.stats import qmc
@@ -13,7 +13,7 @@ def analyze(
     Y: np.ndarray,
     method: str = "WD",
     print_to_console: bool = False,
-    seed: int = None,
+    seed: Optional[int] = None,
 ):
     """Discrepancy indices.
 

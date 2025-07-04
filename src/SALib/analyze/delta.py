@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 from scipy.stats import norm, gaussian_kde, rankdata
 
 import numpy as np
@@ -14,10 +14,10 @@ def analyze(
     num_resamples: int = 100,
     conf_level: float = 0.95,
     print_to_console: bool = False,
-    seed: int = None,
-    y_resamples: int = None,
+    seed: Optional[int] = None,
+    y_resamples: Optional[int] = None,
     method: str = "all",
-) -> Dict:
+) -> ResultDict:
     """Perform Delta Moment-Independent Analysis on model outputs.
 
     Returns a dictionary with keys 'delta', 'delta_conf', 'S1', and 'S1_conf'

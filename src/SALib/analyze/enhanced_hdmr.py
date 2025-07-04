@@ -1,6 +1,6 @@
 import math
 import warnings
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional, DefaultDict, Any
 from types import MethodType
 from itertools import combinations as comb, product
 from collections import defaultdict, namedtuple
@@ -24,14 +24,14 @@ def analyze(
     max_order: int = 2,
     poly_order: int = 3,
     bootstrap: int = 20,
-    subset: int = None,
+    subset: Optional[int] = None,
     max_iter: int = 100,
     l2_penalty: float = 0.01,
     alpha: float = 0.95,
     extended_base: bool = True,
     print_to_console: bool = False,
     return_emulator: bool = False,
-    seed: int = None,
+    seed: Optional[int] = None,
 ) -> Dict:
     """Compute global sensitivity indices using the meta-modeling technique
     known as High-Dimensional Model Representation (HDMR).
@@ -216,7 +216,8 @@ def analyze(
     # Instantiate Core Parameters
     hdmr, Si = _core_params(
         problem,
-        *X.shape,
+        X.shape[0],
+        X.shape[1],
         np.mean(Y),
         poly_order,
         max_order,
@@ -358,7 +359,7 @@ def _core_params(
     bootstrap: int,
     subset: int,
     extended_base: bool,
-) -> Tuple[namedtuple, ResultDict]:
+) -> Tuple[Any, ResultDict]:
     """This function establishes the core parameters of an HDMR
     (High Dimensional Model Representation) expansion and returns
     them in a namedtuple an ResultDict datatype. These parameters
@@ -476,7 +477,7 @@ def _core_params(
         Component name
     """
 
-    cp = defaultdict(int)
+    cp: DefaultDict[str, list[int]] = defaultdict(list)
     cp["n_comp_func"], cp["n_coeff"] = [0] * 3, [0] * 3
     cp["n_comp_func"][0] = d
     cp["n_coeff"][0] = poly_order

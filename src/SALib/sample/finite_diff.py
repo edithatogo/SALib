@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -11,7 +11,7 @@ def sample(
     problem: Dict,
     N: int,
     delta: float = 0.01,
-    seed: int = None,
+    seed: Optional[int] = None,
     skip_values: int = 1024,
 ) -> np.ndarray:
     """

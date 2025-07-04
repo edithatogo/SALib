@@ -2,6 +2,7 @@ import warnings
 import importlib
 from types import MethodType
 from functools import partial, wraps
+from typing import Optional
 
 from multiprocess import Pool, cpu_count
 import numpy as np
@@ -515,7 +516,11 @@ class ProblemSpec(dict):
         return axes
 
     def heatmap(
-        self, metric: str = None, index: str = None, title: str = None, ax=None
+        self,
+        metric: Optional[str] = None,
+        index: Optional[str] = None,
+        title: Optional[str] = None,
+        ax=None,
     ):
         """Plot results as a heatmap.
 

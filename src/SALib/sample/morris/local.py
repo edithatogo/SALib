@@ -1,8 +1,9 @@
 """ """
 
 from itertools import combinations
+from typing import List, Tuple, Union, Optional
+
 import numpy as np  # type: ignore
-from typing import List, Tuple, Union
 
 from .strategy import Strategy
 
@@ -23,7 +24,7 @@ class LocalOptimisation(Strategy):
         N: int,
         num_params: int,
         k_choices: int,
-        num_groups: int = None,
+        num_groups: Optional[int] = None,
     ) -> List:
         """Find the most different trajectories in the input sample using a
         local approach

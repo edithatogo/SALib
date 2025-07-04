@@ -1,4 +1,4 @@
-from typing import Union
+from typing import Union, Any
 import numpy as np
 from numpy import log, sqrt
 from scipy.optimize import brentq
@@ -174,7 +174,7 @@ if __name__ == "__main__":
 
     SEED_VAL = 101
 
-    LAKE_SPEC = {
+    LAKE_SPEC: dict[str, Any] = {
         "num_vars": 7,
         "names": ["a", "q", "b", "mean", "stdev", "delta", "alpha"],
         "bounds": [
@@ -192,7 +192,8 @@ if __name__ == "__main__":
     latin_samples = latin.sample(LAKE_SPEC, 1000, seed=SEED_VAL)
     Y = evaluate(latin_samples)
 
-    for i, name in enumerate(LAKE_SPEC["outputs"]):
+    for i, name_str in enumerate(LAKE_SPEC["outputs"]):
         Si = delta.analyze(LAKE_SPEC, latin_samples, Y[:, i])
-        print(name)
-        print(Si.to_df())
+        print(name_str)
+        Si_df = Si.to_df()
+        print(Si_df)

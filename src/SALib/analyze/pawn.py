@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 from scipy.stats import ks_2samp
@@ -13,7 +13,7 @@ def analyze(
     Y: np.ndarray,
     S: int = 10,
     print_to_console: bool = False,
-    seed: int = None,
+    seed: Optional[int] = None,
 ):
     """Performs PAWN sensitivity analysis.
 

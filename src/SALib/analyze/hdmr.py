@@ -1,4 +1,4 @@
-from typing import Dict
+from typing import Dict, Optional
 from types import MethodType
 
 import itertools
@@ -31,11 +31,11 @@ def analyze(
     maxiter: int = 100,
     m: int = 2,
     K: int = 20,
-    R: int = None,
+    R: Optional[int] = None,
     alpha: float = 0.95,
     lambdax: float = 0.01,
     print_to_console: bool = False,
-    seed: int = None,
+    seed: Optional[int] = None,
 ) -> Dict:
     """Compute global sensitivity indices using the meta-modeling technique
     known as High-Dimensional Model Representation (HDMR).

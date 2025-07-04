@@ -1,4 +1,5 @@
-from typing import Dict
+from typing import Sequence, Optional, Union
+from ..util.problem import ProblemSpec
 import numpy as np
 import matplotlib.pyplot as plt
 from ..util import extract_group_names
@@ -11,7 +12,13 @@ __all__ = ["heatmap"]
 CONF_COLUMN = "_conf"
 
 
-def heatmap(sp: Dict, metric: str, index: str, title: str = None, ax=None):
+def heatmap(
+    sp: "ProblemSpec",
+    metric: Optional[str],
+    index: Optional[Union[str, Sequence[str]]],
+    title: Optional[str] = None,
+    ax=None,
+):
     """Plot a heatmap of the target metric.
 
     Parameters
@@ -68,7 +75,9 @@ def heatmap(sp: Dict, metric: str, index: str, title: str = None, ax=None):
     ax.set_title(title)
 
     if isinstance(metric, str):
-        metric = [metric]
+        metric_list = [metric]
+    else:
+        metric_list = metric
 
     disp_names, _ = extract_group_names(sp)
 
