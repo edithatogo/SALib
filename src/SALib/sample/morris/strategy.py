@@ -251,32 +251,20 @@ class Strategy:
         num_groups=None,
         local_optimization=False,
     ):
-        """Computes the distance between each and every trajectory
-
-        Each entry in the matrix represents the sum of the geometric distances
-        between all the pairs of points of the two trajectories
-
-        If the `groups` argument is filled, then the distances are still
-        calculated for each trajectory,
-
-        Parameters
-        ----------
-        input_sample : numpy.ndarray
-            The input sample of trajectories for which to compute
-            the distance matrix
-        num_samples : int
-            The number of trajectories
-        num_params : int
-            The number of factors
-        num_groups : int, default=None
-            The number of groups
-        local_optimization : bool, default=False
-            If True, fills the lower triangle of the distance matrix
-
-        Returns
-        -------
-        distance_matrix : numpy.ndarray
-
+        """
+        Compute the pairwise distance matrix between all trajectories in the input sample.
+        
+        Each matrix entry contains the sum of geometric distances between all pairs of points from two trajectories. If `local_optimization` is False, only the lower triangle of the matrix is populated; otherwise, the full symmetric matrix is returned.
+        
+        Parameters:
+            input_sample (numpy.ndarray): Array of sampled trajectories.
+            num_samples (int): Number of trajectories.
+            num_params (int): Number of parameters per trajectory.
+            num_groups (int, optional): Number of groups, if grouping is used.
+            local_optimization (bool, optional): If True, returns the full distance matrix; if False, only the lower triangle is filled.
+        
+        Returns:
+            numpy.ndarray: A matrix of pairwise trajectory distances.
         """
         if num_groups:
             self.check_input_sample(input_sample, num_groups, num_samples)
@@ -295,6 +283,16 @@ class Strategy:
         flat_trajs = trajs.reshape(num_samples, -1)
 
         def _traj_metric(a, b):
+            """
+            Computes the sum of pairwise distances between points of two trajectories.
+            
+            Parameters:
+                a (np.ndarray): Flattened array representing the first trajectory.
+                b (np.ndarray): Flattened array representing the second trajectory.
+            
+            Returns:
+                float: The total sum of distances between corresponding points of the two trajectories.
+            """
             a2 = a.reshape(L, P)
             b2 = b.reshape(L, P)
             return float(np.sum(cdist(a2, b2)))
