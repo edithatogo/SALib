@@ -244,7 +244,19 @@ Many thanks for using SALib.
 How to contribute
 -----------------
 
-See `here <CONTRIBUTING.md>`__ for how to contribute to SALib.
+Install the optional development dependencies and run the tests with
+``pytest``::
+
+    pip install .[test,plotting_interactive]
+    pytest
+
+Alternatively, you can create a local conda environment using the
+provided ``environment.yml``::
+
+    conda env create -f environment.yml
+    conda activate SALib
+
+See `CONTRIBUTING.md` for more details.
 
 
 License
