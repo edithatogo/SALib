@@ -130,8 +130,11 @@ def bootstrap(Y: np.ndarray, M: int, resamples: int, conf_level: float):
     res_S1 = np.zeros(resamples)
     res_ST = np.zeros(resamples)
     for i in range(resamples):
-        sample_idx = np.random.choice(T_data, replace=True, size=n_size)
-        Y_rs = Y[sample_idx]
+        if T_data == n_size:
+            start = 0
+        else:
+            start = np.random.randint(0, T_data - n_size + 1)
+        Y_rs = Y[start : start + n_size]
 
         N = len(Y_rs)
         omega = math.floor((N - 1) / (2 * M))

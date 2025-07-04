@@ -147,8 +147,12 @@ def bootstrap(X_d, Y, M, resamples, conf_level):
 
     res = np.zeros(resamples)
     for i in range(resamples):
-        sample_idx = np.random.choice(T_data, replace=True, size=n_size)
-        X_rs, Y_rs = X_d[sample_idx], Y[sample_idx]
+        if T_data == n_size:
+            start = 0
+        else:
+            start = np.random.randint(0, T_data - n_size + 1)
+        X_rs = X_d[start : start + n_size]
+        Y_rs = Y[start : start + n_size]
         S1 = compute_first_order(permute_outputs(X_rs, Y_rs), M)
         S1 = unskew_S1(S1, M, Y_rs.size)
         res[i] = S1

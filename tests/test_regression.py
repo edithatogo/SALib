@@ -466,6 +466,7 @@ def test_regression_delta():
 
 
 def test_regression_delta_svm():
+    np.random.seed(123456)
     xy_input_fn = "tests/data/delta_svm_regression_data.csv"
     inputs = np.loadtxt(xy_input_fn, delimiter=",", skiprows=1)
 
