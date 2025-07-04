@@ -1,0 +1,4 @@
+line-length = 88
+target-version = "py39"
+extend-select = ["I"]
+src = ["src", "tests"]
