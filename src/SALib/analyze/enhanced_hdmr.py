@@ -1,3 +1,4 @@
+import logging
 import math
 import warnings
 from typing import Dict, Tuple
@@ -13,6 +14,8 @@ from scipy import stats, special
 
 from . import common_args
 from ..util import read_param_file, ResultDict
+
+logger = logging.getLogger(__name__)
 
 __all__ = ["analyze", "cli_parse", "cli_action"]
 
@@ -1519,17 +1522,17 @@ def emulate(self, X):
 def _print(Si):
     nc_t = len(Si["Sa"])
     d = np.isnan(Si["ST"]).sum()
-    print("\n")
+    logger.info("\n")
     cols = "Term    \t      Sa            Sb             S             ST         Significancy "  # noqa: E501
-    print(cols)
-    print("-" * 88)  # Header break
+    logger.info(cols)
+    logger.info("-" * 88)  # Header break
 
     format1 = "%-11s   \t %5.2f (\261%.2f) %5.2f (\261%.2f) %5.2f (\261%.2f) %5.2f (\261%.2f)    %-3.2f%%"  # noqa: E501
     format2 = "%-11s   \t %5.2f (\261%.2f) %5.2f (\261%.2f) %5.2f (\261%.2f)                  %-3.2f%%"  # noqa: E501
 
     for i in range(nc_t):
         if i < d:
-            print(
+            logger.info(
                 format1
                 % (
                     Si["Term"][i],
@@ -1545,7 +1548,7 @@ def _print(Si):
                 )
             )
         else:
-            print(
+            logger.info(
                 format2
                 % (
                     Si["Term"][i],
@@ -1559,10 +1562,10 @@ def _print(Si):
                 )
             )
 
-    print("-" * 88)  # Header break
+    logger.info("-" * 88)  # Header break
 
     format3 = "%-11s   \t %5.2f (\261%.2f) %5.2f (\261%.2f) %5.2f (\261%.2f)"
-    print(
+    logger.info(
         format3
         % (
             "Sum",

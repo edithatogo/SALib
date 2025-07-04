@@ -152,11 +152,10 @@ def raincloud_interactive(
                 x=x_cat_violin if orientation == 'v' else y_val_violin,
                 y=y_val_violin if orientation == 'v' else y_cat_violin,
                 name=cat_name,
-                side='positive', # Half-violin
+                side='positive',  # Half-violin
                 orientation=orientation,
                 points=False,
                 legendgroup=cat_name,
-                name=cat_name, # Name for legend item
                 showlegend= (i==0), # Show legend only for the first category's violin
                 scalegroup=cat_name,
                 meanline_visible=False,
