@@ -465,7 +465,29 @@ def test_regression_delta():
     assert_allclose(Si["S1"], [0.31, 0.44, 0.00], atol=5e-2, rtol=1e-1)
 
 
-def test_regression_delta_svm():
+def test_regression_delta_parallel(set_seed):
+    param_file = "src/SALib/test_functions/params/Ishigami.txt"
+    problem = read_param_file(param_file)
+    param_values = latin.sample(problem, 10000)
+
+    Y = Ishigami.evaluate(param_values)
+
+    Si = delta.analyze(
+        problem,
+        param_values,
+        Y,
+        num_resamples=10,
+        conf_level=0.95,
+        print_to_console=False,
+        nprocs=2,
+        seed=12345,
+    )
+
+    assert_allclose(Si["delta"], [0.210, 0.358, 0.155], atol=5e-2, rtol=1e-1)
+    assert_allclose(Si["S1"], [0.31, 0.44, 0.00], atol=5e-2, rtol=1e-1)
+
+
+def test_regression_delta_svm(set_seed):
     xy_input_fn = "tests/data/delta_svm_regression_data.csv"
     inputs = np.loadtxt(xy_input_fn, delimiter=",", skiprows=1)
 

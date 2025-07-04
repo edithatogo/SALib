@@ -1,11 +1,42 @@
 from typing import Dict
+from multiprocessing import Pool
 from scipy.stats import norm, gaussian_kde, rankdata
 
 import numpy as np
 from multiprocess import Pool
 
+
 from . import common_args
 from ..util import read_param_file, ResultDict
+
+
+def _delta_worker(args):
+    (
+        i,
+        Xi,
+        Y,
+        Ygrid,
+        m,
+        num_resamples,
+        conf_level,
+        y_resamples,
+        method,
+        seed_i,
+    ) = args
+
+    if seed_i is not None:
+        np.random.seed(seed_i)
+
+    d = d_conf = s1 = s1_conf = None
+    if method in ["all", "delta"]:
+        d, d_conf = bias_reduced_delta(
+            Y, Ygrid, Xi, m, num_resamples, conf_level, y_resamples
+        )
+    if method in ["all", "sobol"]:
+        ind = np.random.randint(Y.size, size=y_resamples)
+        s1 = sobol_first(Y[ind], Xi[ind], m)
+        s1_conf = sobol_first_conf(Y, Xi, m, num_resamples, conf_level, y_resamples)
+    return i, d, d_conf, s1, s1_conf
 
 
 def analyze(
@@ -18,8 +49,7 @@ def analyze(
     seed: int = None,
     y_resamples: int = None,
     method: str = "all",
-    parallel: bool = False,
-    n_processors: int = None,
+    nprocs: int = 1,
 ) -> Dict:
     """Perform Delta Moment-Independent Analysis on model outputs.
 
@@ -69,11 +99,8 @@ def analyze(
         Number of samples to use when resampling (bootstrap) (default None)
     method : {"all", "delta", "sobol"}, optional
         Whether to compute "delta", "sobol" or both ("all") indices (default "all")
-    parallel : bool, optional
-        If True, parallelizes the bootstrap resampling computations. Default is False.
-    n_processors : int, optional
-        Number of processors to use when `parallel` is True. If None, defaults
-        to all available CPU cores. Default is None.
+    nprocs : int, optional
+        Number of processes to use for parallel execution (default 1)
 
 
     References
@@ -87,6 +114,7 @@ def analyze(
            Operational Research, 226(3):536-550, doi:10.1016/j.ejor.2012.11.047.
     """
     if seed:
+        _rng_state = np.random.get_state()
         np.random.seed(seed)
 
     D = problem["num_vars"]
@@ -111,34 +139,41 @@ def analyze(
     S = ResultDict((k, np.zeros(D)) for k in keys)
     S["names"] = problem["names"]
 
+    if seed and nprocs > 1:
+        child_seeds = [s.entropy for s in np.random.SeedSequence(seed).spawn(D)]
+    else:
+        child_seeds = [None] * D
+
+    tasks = [
+        (
+            i,
+            X[:, i],
+            Y,
+            Ygrid,
+            m,
+            num_resamples,
+            conf_level,
+            y_resamples,
+            method,
+            child_seeds[i],
+        )
+        for i in range(D)
+    ]
+
     try:
-        for i in range(D):
-            X_i = X[:, i]
+        if nprocs > 1:
+            with Pool(nprocs) as pool:
+                results = pool.map(_delta_worker, tasks)
+        else:
+            results = [_delta_worker(t) for t in tasks]
+
+        for i, d, d_conf, s1, s1_conf in results:
             if method in ["all", "delta"]:
-                S["delta"][i], S["delta_conf"][i] = bias_reduced_delta(
-                    Y,
-                    Ygrid,
-                    X_i,
-                    m,
-                    num_resamples,
-                    conf_level,
-                    y_resamples,
-                    parallel=parallel,
-                    n_processors=n_processors,
-                )
+                S["delta"][i] = d
+                S["delta_conf"][i] = d_conf
             if method in ["all", "sobol"]:
-                ind = np.random.randint(Y.size, size=y_resamples)
-                S["S1"][i] = sobol_first(Y[ind], X_i[ind], m)
-                S["S1_conf"][i] = sobol_first_conf(
-                    Y,
-                    X_i,
-                    m,
-                    num_resamples,
-                    conf_level,
-                    y_resamples,
-                    parallel=parallel,
-                    n_processors=n_processors,
-                )
+                S["S1"][i] = s1
+                S["S1_conf"][i] = s1_conf
     except np.linalg.LinAlgError as e:
         msg = "Singular matrix detected\n"
         msg += "This may be due to the sample size ({}) being too small\n".format(
@@ -151,6 +186,9 @@ def analyze(
 
     if print_to_console:
         print(S.to_df())
+
+    if seed:
+        np.random.set_state(_rng_state)
 
     return S
 
@@ -327,6 +365,13 @@ def cli_parse(parser):
         help="Number of samples to use when \
                     resampling (bootstrap)",
     )
+    parser.add_argument(
+        "--nprocs",
+        type=int,
+        required=False,
+        default=1,
+        help="Number of processes to use during analysis",
+    )
     return parser
 
 
@@ -348,6 +393,7 @@ def cli_action(args):
         seed=args.seed,
         method=args.method,
         y_resamples=args.y_resamples,
+        nprocs=args.nprocs,
     )
 
 
