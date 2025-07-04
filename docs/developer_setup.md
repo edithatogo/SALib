@@ -28,5 +28,6 @@ pip install -e .[dev]
 
 ```bash
 pre-commit install
+pre-commit run --all-files
 pytest
 ```
