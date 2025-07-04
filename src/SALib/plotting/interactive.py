@@ -156,7 +156,6 @@ def raincloud_interactive(
                 orientation=orientation,
                 points=False,
                 legendgroup=cat_name,
-                name=cat_name, # Name for legend item
                 showlegend= (i==0), # Show legend only for the first category's violin
                 scalegroup=cat_name,
                 meanline_visible=False,
