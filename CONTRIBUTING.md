@@ -53,11 +53,16 @@ conda env create -f environment.yml  # works with `mamba` too
 conda activate SALib
 ```
 
-Finally, you can install SALib in editable mode in your environment:
+Finally, install SALib along with the development dependencies and set up
+pre-commit:
 
 ```sh
-pip install -e .
+pip install -e .[dev]
+pre-commit install
+pytest
 ```
+
+See `docs/developer_setup.md` for a quick setup summary.
 
 ### Fixing a Bug
 
