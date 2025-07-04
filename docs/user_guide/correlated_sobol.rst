@@ -134,8 +134,4 @@ Always complement these quantitative indices with qualitative understanding of y
 Example
 -------
 
-For a practical demonstration of how to use this method and interpret its results with the Ishigami function, please see the example script:
-:ref:`ishigami_correlated_example` (TODO: Add a proper Sphinx reference or link if sphinx-gallery is used, for now, path below)
-
-The script can be found in the SALib examples directory:
-`examples/sobol_correlated_experimental/ishigami_correlated_example.py`
+For a practical demonstration of how to use this method and interpret its results with the Ishigami function, please see the example script :download:`ishigami_correlated_example.py <../../examples/sobol_correlated_experimental/ishigami_correlated_example.py>`.
