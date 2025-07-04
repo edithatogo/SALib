@@ -3,11 +3,14 @@
 This module implements a correlation-aware Sobol sensitivity analysis method,
 calculating 'full' first-order and total-order indices.
 """
+import logging
 import numpy as np
 from scipy.stats import norm
-from multiprocess import Pool # For parallel bootstrapping
-from SALib.util import ResultDict # For structuring results
+from multiprocess import Pool  # For parallel bootstrapping
+from SALib.util import ResultDict  # For structuring results
 import warnings
+
+logger = logging.getLogger(__name__)
 
 # Define the worker function for bootstrapping (must be top-level for pickling)
 def _bootstrap_sobol_correlated_worker(args):
@@ -185,7 +188,8 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
         Si = ResultDict([('S1_full', S1_full), ('S1_full_conf', S1_full_conf),
                          ('ST_full', ST_full), ('ST_full_conf', ST_full_conf)])
         Si['names'] = problem['names']
-        if print_to_console: print(Si)
+        if print_to_console:
+            logger.info(Si)
         return Si
 
 
@@ -310,6 +314,6 @@ def analyze(problem: dict, Y: np.ndarray, calc_second_order: bool = True,
 
     if print_to_console:
         # Basic print, ProblemSpec.to_df() might need adaptation for these new keys
-        print(Si)
+        logger.info(Si)
 
     return Si

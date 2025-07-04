@@ -1,7 +1,10 @@
 from typing import Union
+import logging
 import numpy as np
 from numpy import log, sqrt
 from scipy.optimize import brentq
+
+logger = logging.getLogger(__name__)
 
 
 FLOAT_OR_ARRAY = Union[float, np.array]
@@ -194,5 +197,5 @@ if __name__ == "__main__":
 
     for i, name in enumerate(LAKE_SPEC["outputs"]):
         Si = delta.analyze(LAKE_SPEC, latin_samples, Y[:, i])
-        print(name)
-        print(Si.to_df())
+        logger.info(name)
+        logger.info(Si.to_df())

@@ -2,15 +2,16 @@
 """
 Tests for the correlation-aware Sobol analyzer.
 """
+import logging
 import numpy as np
 from numpy.testing import assert_allclose, assert_equal
 from pytest import raises
 
 from SALib.analyze.sobol_correlated import analyze as analyze_sobol_correlated
 from SALib.sample.sobol_correlated import sample as sample_sobol_correlated # To generate samples for tests
-from SALib.test_functions import Ishigami # Example test function
+from SALib.test_functions import Ishigami  # Example test function
 from SALib.util.problem import ProblemSpec
-from SALib.test_functions import linear_model
+from SALib.test_functions import linear_model_1 as linear_model
 
 
 # Helper to define a standard correlated problem for testing
@@ -33,7 +34,9 @@ def get_test_problem_correlated_for_analyze(num_vars=3):
             "corr_matrix": np.array([[1.0, 0.8],
                                      [0.8, 1.0]]),
         }
-    return ProblemSpec(problem_dict)
+    ps = ProblemSpec(problem_dict)
+    ps["groups"] = None
+    return ps
 
 
 class TestSobolCorrelatedAnalyze:
@@ -77,7 +80,7 @@ class TestSobolCorrelatedAnalyze:
         coeffs = np.array([2.0, 0.0])
 
         param_values = sample_sobol_correlated(problem, N=N_test, seed=201)
-        Y = linear_model.evaluate(param_values, coeffs=coeffs)
+        Y = param_values @ coeffs
 
         Si = analyze_sobol_correlated(problem, Y, num_resamples=50, seed=202)
 
@@ -143,16 +146,17 @@ class TestSobolCorrelatedAnalyze:
         assert_allclose(Si_parallel["S1_full_conf"], Si_serial["S1_full_conf"], rtol=0.2, atol=0.01) # Looser tolerance
         assert_allclose(Si_parallel["ST_full_conf"], Si_serial["ST_full_conf"], rtol=0.2, atol=0.01)
 
-    def test_print_to_console(self, capsys):
+    def test_print_to_console(self, caplog):
         N_test = 20
         problem = get_test_problem_correlated_for_analyze(num_vars=2)
         param_values = sample_sobol_correlated(problem, N=N_test, seed=501)
-        Y = linear_model.evaluate(param_values, coeffs=np.array([1.0, 0.5]))
+        Y = param_values @ np.array([1.0, 0.5])
 
-        analyze_sobol_correlated(problem, Y, num_resamples=5, seed=502, print_to_console=True)
-        captured = capsys.readouterr()
-        assert "S1_full" in captured.out
-        assert "ST_full" in captured.out
+        with caplog.at_level(logging.INFO):
+            analyze_sobol_correlated(problem, Y, num_resamples=5, seed=502, print_to_console=True)
+        output = "\n".join(record.getMessage() for record in caplog.records)
+        assert "S1_full" in output
+        assert "ST_full" in output
 
     def test_s2_full_calculation_and_shape(self):
         """Test S2_full calculation, shape, and calc_second_order flag."""
@@ -163,7 +167,7 @@ class TestSobolCorrelatedAnalyze:
 
         # Y = X1 + X2 + X3 (no interactions, S2_full should be small)
         coeffs = np.array([1.0, 1.0, 1.0])
-        Y = linear_model.evaluate(param_values, coeffs=coeffs)
+        Y = param_values @ coeffs
 
         # Test with calc_second_order = True (default)
         Si_s2_true = analyze_sobol_correlated(problem, Y, num_resamples=10, seed=602, calc_second_order=True)

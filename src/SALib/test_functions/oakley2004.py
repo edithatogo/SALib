@@ -1,6 +1,9 @@
+import logging
 import numpy as np
 
 from SALib import ProblemSpec
+
+logger = logging.getLogger(__name__)
 
 
 def evaluate(X: np.ndarray, A: np.ndarray, M: np.ndarray) -> np.ndarray:
@@ -333,7 +336,7 @@ if __name__ == "__main__":
         .analyze_rbd_fast(seed=101, num_resamples=100)
     )
 
-    print(sp)
+    logger.info(sp)
 
     # analytic S1 values
     analytic = np.array(
@@ -361,5 +364,5 @@ if __name__ == "__main__":
     S1["analytic"] = analytic
     S1["upper"] = S1["S1"] + S1["S1_conf"]
 
-    print(np.all((analytic >= S1["lower"]) & (analytic <= S1["upper"])))
-    print((analytic >= S1["lower"]) & (analytic <= S1["upper"]))
+    logger.info(np.all((analytic >= S1["lower"]) & (analytic <= S1["upper"])))
+    logger.info((analytic >= S1["lower"]) & (analytic <= S1["upper"]))
