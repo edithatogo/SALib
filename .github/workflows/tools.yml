@@ -1,8 +1,10 @@
-name: Tools Test
+name: CI
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
   pull_request:
+    branches: [ main ]
 
 jobs:
   test:
@@ -30,3 +32,32 @@ jobs:
 
       - name: Run tests
         run: pytest
+
+  verify-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Bandit
+        run: pip install bandit
+
+      - name: Install Go-Task
+        run: |
+          curl -sL https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Install Vagrant
+        run: |
+          sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
+          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
+          sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+          sudo apt-get update
+          sudo apt-get install -y vagrant
+
+      - name: Run Bandit
+        run: bandit -r ./src
+
+      - name: Check Go-Task
+        run: task --version
+
+      - name: Check Vagrant
+        run: vagrant --version
