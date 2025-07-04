@@ -118,10 +118,11 @@ def compute_orders(outputs: np.ndarray, N: int, M: int, omega: int):
 
 
 def bootstrap(Y: np.ndarray, M: int, resamples: int, conf_level: float):
-    """Compute CIs.
+    """Compute CIs using block bootstrap.
 
     Infers ``N`` from results of sub-sample ``Y`` and re-estimates omega (ω)
-    for the above ``N``.
+    for the above ``N``. Resamples are drawn from contiguous blocks rather than
+    individual points.
     """
     # Use half of available data each time
     T_data = Y.shape[0]
@@ -130,8 +131,9 @@ def bootstrap(Y: np.ndarray, M: int, resamples: int, conf_level: float):
     res_S1 = np.zeros(resamples)
     res_ST = np.zeros(resamples)
     for i in range(resamples):
-        sample_idx = np.random.choice(T_data, replace=True, size=n_size)
-        Y_rs = Y[sample_idx]
+        # Select contiguous block to preserve local frequency structure
+        start = np.random.randint(0, T_data - n_size + 1)
+        Y_rs = Y[start : start + n_size]
 
         N = len(Y_rs)
         omega = math.floor((N - 1) / (2 * M))
