@@ -1,0 +1,21 @@
+name: Tools
+
+on:
+  workflow_dispatch:
+
+jobs:
+  setup-tools:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Bandit, Go-Task and Vagrant
+        shell: bash
+        run: |
+          set -e
+          pip install --user bandit
+          echo "~/.local/bin" >> "$GITHUB_PATH"
+          bandit --version
+          curl -sL https://taskfile.dev/install.sh | sudo sh -s -- -d -b /usr/local/bin
+          task --version
+          sudo apt-get update
+          sudo apt-get install -y vagrant
+          vagrant --version
