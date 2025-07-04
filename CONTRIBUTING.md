@@ -59,6 +59,9 @@ Finally, you can install SALib in editable mode in your environment:
 pip install -e .
 ```
 
+For a concise walkthrough of installing dependencies and running tests,
+see [Developer Setup](docs/developer_setup.md).
+
 ### Fixing a Bug
 
 First, create a new issue on GitHub with the label `bug`. Use this to describe the nature of the bug and the conditions needed to recreate it.
