@@ -6,6 +6,7 @@ import warnings
 
 from . import common_args
 from ..util import read_param_file, ResultDict
+from ..util.jit import optional_njit
 
 
 def analyze(
@@ -136,6 +137,7 @@ def analyze(
     return Si
 
 
+@optional_njit(nopython=False, cache=True)
 def compute_orders(outputs: np.ndarray, N: int, M: int, omega: int):
     f = np.fft.fft(outputs)
     Sp = np.power(np.absolute(f[np.arange(1, math.ceil(N / 2))]) / N, 2)
@@ -149,6 +151,7 @@ def compute_orders(outputs: np.ndarray, N: int, M: int, omega: int):
     return (D1 / V), (1.0 - Dt / V)
 
 
+<<<<<<< HEAD
 # Worker function for FAST bootstrap
 def _fast_bootstrap_worker(args):
     """
@@ -179,6 +182,7 @@ def _fast_bootstrap_worker(args):
     return compute_orders(Y_rs, N_rs, M_local, omega_rs) # Changed M to M_local
 
 
+@optional_njit(nopython=False, cache=True)
 def bootstrap(
     Y: np.ndarray,
     M: int,
@@ -187,6 +191,10 @@ def bootstrap(
     parallel: bool = False,
     n_processors: int = None,
 ):
+=======
+@optional_njit(nopython=False, cache=True)
+def bootstrap(Y: np.ndarray, M: int, resamples: int, conf_level: float):
+>>>>>>> origin/codex/optimize-functions-with-numba.njit
     """Compute CIs.
 
     Infers ``N`` from results of sub-sample ``Y`` and re-estimates omega (ω)

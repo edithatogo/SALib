@@ -8,6 +8,7 @@ from multiprocess import Pool
 
 from . import common_args
 from ..util import read_param_file, ResultDict
+from ..util.jit import optional_njit
 
 
 def _delta_worker(args):
@@ -215,6 +216,7 @@ def _delta_sobol_worker(args):
     return sobol_first(Y_local[r_i], X_local[r_i], m_local)
 
 
+@optional_njit(nopython=False, cache=True)
 def calc_delta(Y, Ygrid, X, m):
     """Plischke et al. (2013) delta index estimator (eqn 26) for d_hat."""
     N = len(Y)

@@ -17,6 +17,7 @@ from SALib.util import (
     _define_problem_with_groups,
     _compute_delta,
 )
+from SALib.util.jit import optional_njit
 
 
 __all__ = ["sample"]
@@ -185,6 +186,7 @@ def _sample_morris(
     return sample_morris.reshape((number_trajectories * (num_groups + 1), num_params))
 
 
+@optional_njit(cache=True)
 def _generate_trajectory(
     group_membership: np.ndarray, num_levels: int = 4
 ) -> np.ndarray:
@@ -215,16 +217,16 @@ def _generate_trajectory(
     num_groups = group_membership.shape[1]
 
     # Matrix B - size (g + 1) * g -  lower triangular matrix
-    B = np.tril(np.ones([num_groups + 1, num_groups], dtype=int), -1)
+    B = np.tril(np.ones((num_groups + 1, num_groups), dtype=np.int64), -1)
 
     P_star = _generate_p_star(num_groups)
 
     # Matrix J - a (g+1)-by-num_params matrix of ones
-    J = np.ones((num_groups + 1, num_params))
+    J = np.ones((num_groups + 1, num_params), dtype=float)
 
     # Matrix D* - num_params-by-num_params matrix which describes whether
     # factors move up or down
-    D_star = np.diag(rd.choice([-1, 1], num_params))
+    D_star = np.diag(np.random.choice(np.array([-1, 1]), num_params))
 
     x_star = _generate_x_star(num_params, num_levels)
 
@@ -234,6 +236,7 @@ def _generate_trajectory(
     return B_star
 
 
+@optional_njit(cache=True)
 def _compute_b_star(
     J: np.ndarray,
     x_star: np.ndarray,
@@ -261,15 +264,22 @@ def _compute_b_star(
     -------
     Random sampling matrix B*
     """
+    J = J.astype(np.float64)
+    B = B.astype(np.float64)
+    G = G.astype(np.float64)
+    P_star = P_star.astype(np.float64)
+    D_star = D_star.astype(np.float64)
+
     element_a = J[0, :] * x_star
-    element_b = np.matmul(G, P_star).T
-    element_c = np.matmul(2.0 * B, element_b)
-    element_d = np.matmul((element_c - J), D_star)
+    element_b = np.dot(G, P_star).T
+    element_c = np.dot(2.0 * B, element_b)
+    element_d = np.dot(element_c - J, D_star)
 
     b_star = element_a + (delta / 2.0) * (element_d + J)
     return b_star
 
 
+@optional_njit(cache=True)
 def _generate_p_star(num_groups: int) -> np.ndarray:
     """Describe the order in which groups move
 
@@ -283,10 +293,11 @@ def _generate_p_star(num_groups: int) -> np.ndarray:
         Matrix P* - size (g-by-g)
     """
     p_star = np.eye(num_groups, num_groups)
-    rd.shuffle(p_star)
+    np.random.shuffle(p_star)
     return p_star
 
 
+@optional_njit(cache=True)
 def _generate_x_star(num_params: int, num_levels: int) -> np.ndarray:
     """Generate an 1-by-num_params array to represent initial position for EE
 
@@ -310,7 +321,7 @@ def _generate_x_star(num_params: int, num_levels: int) -> np.ndarray:
     bound = 1 - delta
     grid = np.linspace(0, bound, int(num_levels / 2))
 
-    x_star[0, :] = rd.choice(grid, num_params)
+    x_star[0, :] = np.random.choice(grid, num_params)
 
     return x_star
 
