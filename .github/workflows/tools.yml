@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -39,19 +43,24 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install Bandit
-        run: pip install bandit
+        run: |
+          set -e
+          python -m pip install --user bandit
+          echo "${HOME}/.local/bin" >> "$GITHUB_PATH"
+          bandit --version
 
       - name: Install Go-Task
         run: |
-          curl -sL https://taskfile.dev/install.sh | sh -s -- -b /usr/local/bin
+          set -e
+          curl -sL https://taskfile.dev/install.sh | sudo sh -s -- -d -b /usr/local/bin
+          task --version
 
       - name: Install Vagrant
         run: |
-          sudo apt-get update && sudo apt-get install -y gnupg software-properties-common
-          curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo apt-key add -
-          sudo apt-add-repository "deb [arch=amd64] https://apt.releases.hashicorp.com $(lsb_release -cs) main"
+          set -e
           sudo apt-get update
           sudo apt-get install -y vagrant
+          vagrant --version
 
       - name: Run Bandit
         run: bandit -r ./src
