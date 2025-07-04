@@ -14,7 +14,7 @@ Example
 import abc
 
 import numpy as np  # type: ignore
-from scipy.spatial.distance import cdist  # type: ignore
+from scipy.spatial.distance import cdist, pdist, squareform  # type: ignore
 
 
 class SampleMorris(object):
@@ -284,16 +284,27 @@ class Strategy:
             self.check_input_sample(input_sample, num_params, num_samples)
 
         index_list = self._make_index_list(num_samples, num_params, num_groups)
-        distance_matrix = np.zeros((num_samples, num_samples), dtype=np.float32)
 
-        for j in range(num_samples):
-            input_1 = input_sample[index_list[j]]
-            for k in range(j + 1, num_samples):
-                input_2 = input_sample[index_list[k]]
+        # Stack trajectories into a (num_samples, L, P) array where L is the
+        # number of points per trajectory and P is the number of parameters
+        trajs = np.stack([input_sample[idx] for idx in index_list])
+        L, P = trajs.shape[1:]
 
-                # Fills the lower triangle of the matrix
-                if local_optimization is True:
-                    distance_matrix[j, k] = self.compute_distance(input_1, input_2)
+        # Flatten each trajectory for use with ``pdist`` and define a custom
+        # metric that matches ``compute_distance``
+        flat_trajs = trajs.reshape(num_samples, -1)
 
-                distance_matrix[k, j] = self.compute_distance(input_1, input_2)
-        return distance_matrix
+        def _traj_metric(a, b):
+            a2 = a.reshape(L, P)
+            b2 = b.reshape(L, P)
+            return float(np.sum(cdist(a2, b2)))
+
+        condensed = pdist(flat_trajs, metric=_traj_metric)
+        full_matrix = squareform(condensed).astype(np.float32)
+
+        if not local_optimization:
+            # Mimic previous behaviour where only the lower triangle is
+            # populated for the brute-force optimisation
+            full_matrix = np.tril(full_matrix, k=-1)
+
+        return full_matrix
