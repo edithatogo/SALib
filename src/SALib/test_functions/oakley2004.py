@@ -328,7 +328,7 @@ if __name__ == "__main__":
     )
 
     (
-        sp.sample_latin(2048, seed=101)
+        sp.sample_latin(2048, seed=101)  # type: ignore[attr-defined]
         .evaluate(evaluate, A, M)
         .analyze_rbd_fast(seed=101, num_resamples=100)
     )

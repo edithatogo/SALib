@@ -1,13 +1,13 @@
+from typing import Dict, Optional
+
 import numpy as np
-from typing import Dict
 
 import numpy.random as rd
 import warnings
 
 from .local import LocalOptimisation
 from .brute import BruteForce
-
-from .strategy import SampleMorris
+from .strategy import SampleMorris, Strategy
 
 from SALib.sample import common_args
 from SALib.util import (
@@ -27,9 +27,9 @@ def sample(
     problem: Dict,
     N: int,
     num_levels: int = 4,
-    optimal_trajectories: int = None,
+    optimal_trajectories: Optional[int] = None,
     local_optimization: bool = True,
-    seed: int = None,
+    seed: Optional[int] = None,
 ) -> np.ndarray:
     """Generate model inputs using the Method of Morris.
 
@@ -414,6 +414,7 @@ def _choose_optimization_strategy(local_optimization: bool):
     -------
 
     """
+    strategy: Strategy
     if local_optimization:
         # Use local method
         strategy = LocalOptimisation()

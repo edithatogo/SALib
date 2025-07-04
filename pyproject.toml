@@ -71,6 +71,7 @@ dev = [
     "SALib[doc]",
     "pre-commit",
     "hatch",
+    "mypy",
 ]
 
 [project.scripts]
