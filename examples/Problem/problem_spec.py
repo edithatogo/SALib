@@ -10,6 +10,7 @@ The following caveats apply:
 2. Parallel evaluation/analysis is only beneficial for long-running models
    or large datasets
 3. Currently, results must fit in memory - no on-disk caching is provided.
+4. Install :mod:`p_tqdm` to see progress bars during parallel runs.
 """
 
 from SALib.analyze import sobol
