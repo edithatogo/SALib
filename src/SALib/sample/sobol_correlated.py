@@ -5,9 +5,7 @@ sensitivity analysis, based on constructing sample matrices A, B, C_i, and D_i
 from base correlated samples.
 """
 import numpy as np
-from SALib.sample.latin import sample as latin_sample # For generating base correlated samples
-from SALib.util importดูเพิ่มเติม
-from SALib.sample.latin import sample as latin_sample # For generating base correlated samples
+from SALib.sample.latin import sample as latin_sample  # For generating base correlated samples
 # (already present) from SALib.util import ProblemSpec # Not directly needed, problem is dict
 
 
