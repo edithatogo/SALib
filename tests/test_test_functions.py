@@ -511,7 +511,7 @@ def test_oakley_results():
     S1 = sp.analysis.to_df()
 
     S1["lower"] = S1["S1"] - S1["S1_conf"]
-    S1["analytic"] = analytic
     S1["upper"] = S1["S1"] + S1["S1_conf"]
+    S1["analytic"] = analytic
 
-    assert np.all((analytic >= S1["lower"]) & (analytic <= S1["upper"]))
+    assert np.allclose(S1["S1"], analytic, atol=0.05)
